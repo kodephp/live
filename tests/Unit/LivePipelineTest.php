@@ -9,6 +9,7 @@ use Kode\Live\Contracts\Downloader;
 use Kode\Live\Contracts\LiveEvent;
 use Kode\Live\Contracts\LivePlatform;
 use Kode\Live\Pipeline\LivePipeline;
+use Kode\Live\Support\Archive\TemplateArchiveStrategy;
 use Kode\Live\Support\Dto\DownloadOptions;
 use Kode\Live\Support\Dto\DownloadResult;
 use Kode\Live\Support\Dto\PlaybackUrl;
@@ -129,6 +130,81 @@ final class LivePipelineTest extends TestCase
 
         self::assertSame('/tmp/out.mp4', $result->path);
     }
+
+    public function testListenerExceptionIsCapturedInDeadLetterQueue(): void
+    {
+        $event = new StreamStartedEvent(Platform::Rtmp, 's1', new DateTimeImmutable());
+        $pipeline = new LivePipeline(new StubPlatform($event));
+
+        $pipeline->on(StreamStartedEvent::class, static function (): void {
+            throw new \RuntimeException('boom');
+        });
+        $pipeline->handleWebhook('payload');
+
+        self::assertSame(1, $pipeline->deadLetters()->count());
+        $item = $pipeline->deadLetters()->all()[0];
+        self::assertInstanceOf(\RuntimeException::class, $item['error']);
+        self::assertSame($event, $item['event']);
+    }
+
+    public function testDrainDeadLettersClearsQueue(): void
+    {
+        $event = new StreamStartedEvent(Platform::Rtmp, 's1', new DateTimeImmutable());
+        $pipeline = new LivePipeline(new StubPlatform($event));
+        $pipeline->on(StreamStartedEvent::class, static function (): void {
+            throw new \RuntimeException('boom');
+        });
+        $pipeline->handleWebhook('payload');
+
+        $drained = $pipeline->drainDeadLetters();
+
+        self::assertCount(1, $drained);
+        self::assertSame(0, $pipeline->deadLetters()->count());
+    }
+
+    public function testAutoArchiveInvokesDownloaderOnRecordingReady(): void
+    {
+        $recording = new Recording(
+            streamName: 's1',
+            appName: 'live',
+            bucket: 'b',
+            objectKey: 'records/s1/2026/07/25/s1.mp4',
+            format: RecordingFormat::Mp4,
+            sourceUrl: 'https://x/s1.mp4',
+        );
+        $event = new RecordingReadyEvent(Platform::Rtmp, 's1', new DateTimeImmutable(), $recording);
+        $downloader = new FakeDownloader();
+        $pipeline = new LivePipeline(new StubPlatform($event), downloader: $downloader);
+        $pipeline->autoArchive(new TemplateArchiveStrategy('/data/{date}/{streamName}/{baseName}'));
+
+        $pipeline->handleWebhook('payload');
+
+        // 自动归档应把下载器指向模板生成的路径，且不产生死信。
+        self::assertSame('/data/2026/07/25/s1/s1.mp4', $downloader->lastDestination);
+        self::assertSame(0, $pipeline->deadLetters()->count());
+    }
+
+    public function testAutoArchiveFailureGoesToDeadLetterQueue(): void
+    {
+        $recording = new Recording(
+            streamName: 's1',
+            appName: 'live',
+            bucket: 'b',
+            objectKey: 'o.mp4',
+            format: RecordingFormat::Mp4,
+            sourceUrl: 'https://x/o.mp4',
+        );
+        $event = new RecordingReadyEvent(Platform::Rtmp, 's1', new DateTimeImmutable(), $recording);
+        // 故意让下载器抛错
+        $downloader = new FailingDownloader();
+        $pipeline = new LivePipeline(new StubPlatform($event), downloader: $downloader);
+        $pipeline->autoArchive(new TemplateArchiveStrategy('/data/{baseName}'));
+
+        $pipeline->handleWebhook('payload');
+
+        self::assertSame(1, $pipeline->deadLetters()->count());
+        self::assertInstanceOf(\RuntimeException::class, $pipeline->deadLetters()->all()[0]['error']);
+    }
 }
 
 /**
@@ -190,8 +266,20 @@ final class FakeDispatcher implements EventDispatcherInterface
 
 final class FakeDownloader implements Downloader
 {
+    public ?string $lastDestination = null;
+
     public function download(string $sourceUrl, string $destination, ?DownloadOptions $options = null): DownloadResult
     {
+        $this->lastDestination = $destination;
+
         return new DownloadResult($destination, 0, false, null);
+    }
+}
+
+final class FailingDownloader implements Downloader
+{
+    public function download(string $sourceUrl, string $destination, ?DownloadOptions $options = null): DownloadResult
+    {
+        throw new \RuntimeException('download failed');
     }
 }

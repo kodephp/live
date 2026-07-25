@@ -18,6 +18,7 @@ enum Platform: string
     case Douyin = 'douyin';
     case Huawei = 'huawei';
     case WeixinChannels = 'weixin_channels';
+    case Kuaishou = 'kuaishou';
 
     public function label(): string
     {
@@ -29,6 +30,7 @@ enum Platform: string
             self::Douyin => '抖音直播',
             self::Huawei => '华为云直播（CSS）',
             self::WeixinChannels => '微信视频号直播',
+            self::Kuaishou => '快手直播',
         };
     }
 }

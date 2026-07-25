@@ -7,11 +7,15 @@ namespace Kode\Live\Pipeline;
 use Kode\Live\Contracts\Downloader;
 use Kode\Live\Contracts\LiveEvent;
 use Kode\Live\Contracts\LivePlatform;
+use Kode\Live\Support\Archive\ArchiveStrategy;
+use Kode\Live\Support\Clock\SystemClock;
 use Kode\Live\Support\Dto\DownloadOptions;
 use Kode\Live\Support\Dto\DownloadResult;
 use Kode\Live\Support\Dto\PlaybackUrl;
 use Kode\Live\Support\Event\RecordingReadyEvent;
 use Kode\Live\Support\Exception\UnsupportedFeatureException;
+use Kode\Live\Support\Pipeline\DeadLetterQueue;
+use Psr\Clock\ClockInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -22,26 +26,36 @@ use Psr\Log\NullLogger;
  * 典型用法：
  *   1) handleWebhook() 接收平台回调，验签并归一化为事件，随后：派发到 PSR-14 事件总线（若配置），
  *      并调用通过 on() 注册的本地监听器（按优先级顺序、互不影响地执行）。
- *   2) 若为 RecordingReadyEvent，用 playbackFor() 生成回放地址，或 archive() 落地到本地。
+ *   2) 若为 RecordingReadyEvent，用 playbackFor() 生成回放地址，或 archive() / archiveWith() 落地到本地；
+ *      若通过 autoArchive() 注册了归档策略，则每次收到录制完成事件时自动触发下载。
+ *   3) 任何一步失败（监听器抛异常、自动归档下载失败）都不会中断流水线，而是落入死信队列（deadLetters()），
+ *      便于事后排查与补跑——这是弹性编排的关键。
  */
 final class LivePipeline
 {
     /** @var list<array{class: string, listener: callable, priority: int}> */
     private array $listeners = [];
 
+    private ?ArchiveStrategy $autoArchive = null;
+
     public function __construct(
         private readonly LivePlatform $platform,
         private readonly ?Downloader $downloader = null,
         private readonly ?EventDispatcherInterface $dispatcher = null,
         private readonly LoggerInterface $logger = new NullLogger(),
+        ?DeadLetterQueue $deadLetters = null,
+        private readonly ClockInterface $clock = new SystemClock(),
     ) {
+        $this->deadLetters = $deadLetters ?? new DeadLetterQueue();
     }
+
+    private DeadLetterQueue $deadLetters;
 
     /**
      * 注册本地事件监听器。
      *
      * 归一化事件若 `instanceof $eventClass` 即触发；多个监听器按 priority 降序执行，
-     * 单个监听器抛错不会中断流水线（错误被记录后跳过），保证编排的健壮性。
+     * 单个监听器抛错不会中断流水线（错误被记录并落入死信队列后跳过），保证编排的健壮性。
      *
      * @param string $eventClass 监听的事件类（如 RecordingReadyEvent::class，支持父类/接口匹配）
      * @param callable $listener 接收该事件对象的回调（实际入参为 $eventClass 实例）
@@ -50,6 +64,19 @@ final class LivePipeline
     public function on(string $eventClass, callable $listener, int $priority = 0): self
     {
         $this->listeners[] = ['class' => $eventClass, 'listener' => $listener, 'priority' => $priority];
+
+        return $this;
+    }
+
+    /**
+     * 注册「自动归档」策略：此后每次收到 RecordingReadyEvent 且注入 Downloader 时，
+     * 流水线会自动把录制文件下载到策略生成的本地路径（失败则落入死信队列）。
+     *
+     * 与 on() 监听器的区别：归档是「副作用」而非「业务逻辑回调」，失败不影响其余编排。
+     */
+    public function autoArchive(ArchiveStrategy $strategy): self
+    {
+        $this->autoArchive = $strategy;
 
         return $this;
     }
@@ -75,6 +102,10 @@ final class LivePipeline
 
         $this->dispatchLocal($event);
 
+        if ($event instanceof RecordingReadyEvent && $this->autoArchive !== null && $this->downloader !== null) {
+            $this->runAutoArchive($event);
+        }
+
         return $event;
     }
 
@@ -87,7 +118,7 @@ final class LivePipeline
     }
 
     /**
-     * 把录制文件下载归档到本地。
+     * 把录制文件下载归档到本地（显式指定目标路径）。
      *
      * 优先使用回调携带的直链；没有则回退到签名回放地址。
      */
@@ -108,7 +139,59 @@ final class LivePipeline
     }
 
     /**
-     * 派发到本地监听器：按优先级降序执行，单个失败不影响其余监听器。
+     * 用归档策略计算目标路径后下载（便捷封装）。
+     */
+    public function archiveWith(
+        RecordingReadyEvent $event,
+        ArchiveStrategy $strategy,
+        ?DownloadOptions $options = null,
+        int $ttlSeconds = 3600,
+    ): DownloadResult {
+        return $this->archive($event, $strategy->destinationFor($event), $options, $ttlSeconds);
+    }
+
+    /**
+     * 取出当前死信队列（只读引用，可用 drainDeadLetters() 清空）。
+     */
+    public function deadLetters(): DeadLetterQueue
+    {
+        return $this->deadLetters;
+    }
+
+    /**
+     * 取出并清空死信队列（典型用于定时补跑 / 上报后重置）。
+     *
+     * @return list<array{event: LiveEvent, error: \Throwable, at: \DateTimeImmutable}>
+     */
+    public function drainDeadLetters(): array
+    {
+        return $this->deadLetters->drain();
+    }
+
+    private function runAutoArchive(RecordingReadyEvent $event): void
+    {
+        \assert($this->autoArchive !== null && $this->downloader !== null);
+
+        try {
+            $destination = $this->autoArchive->destinationFor($event);
+            $result = $this->archive($event, $destination);
+
+            $this->logger->info('已自动归档直播录制', [
+                'platform' => $event->platform()->value,
+                'path' => $result->path,
+                'bytes' => $result->bytes,
+            ]);
+        } catch (\Throwable $e) {
+            $this->deadLetters->push($event, $e, $this->clock->now());
+            $this->logger->error('自动归档失败，已转入死信队列', [
+                'platform' => $event->platform()->value,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * 派发到本地监听器：按优先级降序执行，单个失败不影响其余监听器，并落入死信队列。
      */
     private function dispatchLocal(LiveEvent $event): void
     {
@@ -129,7 +212,8 @@ final class LivePipeline
             try {
                 ($entry['listener'])($event);
             } catch (\Throwable $e) {
-                $this->logger->error('直播事件监听器执行失败', [
+                $this->deadLetters->push($event, $e, $this->clock->now());
+                $this->logger->error('直播事件监听器执行失败，已转入死信队列', [
                     'event' => $event->type()->value,
                     'listener' => $entry['class'],
                     'error' => $e->getMessage(),

@@ -41,8 +41,11 @@ composer require kode/live
 | 抖音直播 | `douyin` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
 | 华为云直播（CSS） | `huawei` | RTMP | FLV / HLS | OBS | `md5(callbackKey+t)` |
 | 微信视频号 | `weixin_channels` | RTMP | 可选（自有 CDN） | 开放平台 | `md5(排序参数+token)` |
+| 快手直播 | `kuaishou` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
 
-> 注：B站 / 抖音 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
+> 注：B站 / 抖音 / 快手 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
+
+> 关于 **SRT（Secure Reliable Transport）接入**：SRT 是传输层协议，与「推流地址拼装 + Webhook 回调」这一 `LivePlatform` 契约不在同一抽象层。把它塞进现有驱动反而破坏分层。如需支持 SRT 源站 / 拉流，应新增一层独立的 `Transporter` 抽象（负责 SRT 握手的建立与字节流收发），由 `LivePlatform` 在其之上组合——这部分留作下一阶段，不在本次范围内。
 
 ## 安全与健壮性
 
@@ -154,6 +157,34 @@ $pipeline
     ->handleWebhook($rawBody, getallheaders());
 ```
 
+#### 3c. 自动归档与死信队列
+
+除了手动 `archive()`，还可以用 `autoArchive()` 注册一个归档策略；此后每次收到
+`RecordingReadyEvent` 且注入了 `ResumableDownloader` 时，流水线会**自动**把录制文件下载到
+策略生成的本地路径。
+
+归档策略只决定「落盘到哪」：内置 `TemplateArchiveStrategy` 用占位符拼路径
+（`{date}` 当前日期 Y/m/d、`{streamName}` 流名、`{objectKey}` 桶内完整 key、
+`{baseName}` 文件名、`{bucket}` 存储桶）。
+
+```php
+use Kode\Live\Support\Archive\TemplateArchiveStrategy;
+
+$pipeline->autoArchive(new TemplateArchiveStrategy('/data/records/{date}/{streamName}/{baseName}'));
+$pipeline->handleWebhook($rawBody, getallheaders()); // 录制完成即自动下载
+```
+
+**失败不丢事件**：无论本地监听器抛错，还是自动归档下载失败，都不会中断流水线，
+而是原样落入**死信队列**（事件 + 异常 + 时间戳），便于事后排查或补跑：
+
+```php
+if ($pipeline->deadLetters()->count() > 0) {
+    foreach ($pipeline->drainDeadLetters() as $item) {
+        report($item['event'], $item['error'], $item['at']); // 告警 / 补偿重试
+    }
+}
+```
+
 ### 4. 注入对象存储签名（回放需要）
 
 ```php
@@ -224,14 +255,30 @@ echo $wx->pushUrl(new StreamRequest('your-stream-key'))->url;
 > 视频号权威的微信消息加解密（msg_signature + AES）应在微信开放平台侧完成，本驱动仅做
 > 「配置驱动地址拼装 + 回调归一化」层。
 
+### 5c. 快手直播
+
+```php
+use Kode\Live\LiveStreaming\Kuaishou\{KuaishouConfig, KuaishouPlatform};
+use Kode\Live\Support\Dto\{RecordingConfig, StreamRequest};
+use Kode\Live\Support\Enum\StreamProtocol;
+
+// 快手真实推流地址与播放鉴权串由开放平台 API 下发，接入时用官方 SDK 取回覆盖默认域名
+$ks = new KuaishouPlatform(
+    new KuaishouConfig(callbackSecret: 'your-callback-secret'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $ks->pushUrl(new StreamRequest('your-stream-key'))->url;   // rtmp://live-push.kuaishou.com/live/your-stream-key
+echo $ks->pullUrl(new StreamRequest('your-stream-key'), StreamProtocol::Flv)->url;
+```
+
 ## 开发
 
 ```bash
 composer check   # = php-cs-fixer(dry-run) + phpstan level 8 + phpunit
 ```
 
-工程规则见 [`.cursorrules`](.cursorrules) 与 [`.github/copilot-instructions.md`](.github/copilot-instructions.md)（对所有 AI 编码助手 / IDE 生效）。
-新增平台驱动见 [`.workbuddy/skills/add-live-platform/SKILL.md`](.workbuddy/skills/add-live-platform/SKILL.md)。
+工程规则见 [`.github/copilot-instructions.md`](.github/copilot-instructions.md)（对所有 AI 编码助手 / IDE 生效）。
+编辑器规则（`.cursorrules` / `.cursor/rules`）、平台扩展指引（`.workbuddy/skills`）以**本地文件**形式提供，仅本地保留、不纳入仓库，克隆后按需自行补充。
 
 ## License
 
