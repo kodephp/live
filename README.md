@@ -8,6 +8,7 @@
 - **直播与存储的结合点是「事件」而非耦合**：直播录制完成后云厂商回调 `RecordingReadyEvent`，携带录制文件在对象存储中的位置；下游据此生成回放地址或下载归档，**无需轮询**。
 - **面向接口 + 驱动模式**：新增平台 = 实现 `Contracts\LivePlatform`，不改核心。
 - **精简依赖**：回放/下载所需的对象存储签名 URL 通过 `SignedUrlProvider` 委托，核心包不硬依赖任何 COS/OSS SDK。
+- **传输层独立**：SRT 等传输协议建模为独立的 `Transporter` 抽象（见 §6），与平台驱动正交，新增传输实现不触碰直播核心。
 
 ## 架构
 
@@ -45,7 +46,7 @@ composer require kode/live
 
 > 注：B站 / 抖音 / 快手 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
 
-> 关于 **SRT（Secure Reliable Transport）接入**：SRT 是传输层协议，与「推流地址拼装 + Webhook 回调」这一 `LivePlatform` 契约不在同一抽象层。把它塞进现有驱动反而破坏分层。如需支持 SRT 源站 / 拉流，应新增一层独立的 `Transporter` 抽象（负责 SRT 握手的建立与字节流收发），由 `LivePlatform` 在其之上组合——这部分留作下一阶段，不在本次范围内。
+> 关于 **SRT（Secure Reliable Transport）接入**：SRT 是传输层协议，与 `LivePlatform` 的「推流地址拼装 + Webhook 回调」契约不在同一抽象层。本包把它独立建模为 `Transporter` 抽象（见 §6 传输层），由 `TransporterManager` 按 scheme 路由，与直播 / 录制 / 回放 / 事件体系完全正交，不破坏既有分层。
 
 ## 安全与健壮性
 
@@ -270,6 +271,46 @@ $ks = new KuaishouPlatform(
 echo $ks->pushUrl(new StreamRequest('your-stream-key'))->url;   // rtmp://live-push.kuaishou.com/live/your-stream-key
 echo $ks->pullUrl(new StreamRequest('your-stream-key'), StreamProtocol::Flv)->url;
 ```
+
+### 6. 传输层（SRT Transporter）
+
+SRT 是低延迟可靠传输协议，常用于跨公网把编码器输出稳定地推到源站。它属于「字节收发」的传输层，
+与 `LivePlatform` 负责的「推流地址拼装 + Webhook 回调」不在同一抽象层，因此本包把它独立为
+`Transporter` 抽象，由 `TransporterManager` 按 scheme 路由——既有的直播 / 录制 / 回放 / 事件体系
+完全不受影响。
+
+```php
+use Kode\Live\Transporter\{ExternalSrtTransporter, SrtUrl, TransporterManager, TransporterOptions};
+
+// 平台驱动负责拼出 SRT 摄入地址（srt://host:port?...），真正的字节收发交给 Transporter
+$ingest = SrtUrl::fromString('srt://srt-ingest.example.com:9000?mode=caller&passphrase=secret&latency=200');
+
+// 参考实现：通过系统已安装的 srt-live-transmit（或 ffmpeg）外进程完成传输
+$manager = TransporterManager::default();           // 已注册 srt -> ExternalSrtTransporter
+$result = $manager->transmit(
+    source: 'udp://0.0.0.0:1234',                    // 本地源（文件 / UDP / 另一个 SRT 地址）
+    destination: $ingest,
+    options: new TransporterOptions(
+        reconnectAttempts: 3,                        // 瞬时失败（进程非零退出）指数退避重连
+        logger: $psrLogger,                          // 可选：重连时记录 warning
+    ),
+);
+
+if (!$result->success) {
+    // 软失败以结果表达，硬错误（连外层 shell 都无法启动）才抛 TransportException
+    report($result->error);
+}
+```
+
+要点：
+
+- `SrtUrl` 是纯地址值对象（`fromString()` / `__toString()` 互转），仅做主机名 / 端口格式校验，
+  不做 SSRF 拦截——SRT 是你自主管控的传输通道（常指向内网编码网关），与「下载器拉取外部 URL」的
+  威胁模型不同。
+- `ExternalSrtTransporter` 不绑定任何 PHP SRT C 扩展，保证可移植；如需零拷贝原生实现，另写一个
+  实现 `Transporter` 接口的类（如基于 ext-srt 的 `SocketTransporter`），通过
+  `TransporterManager::register()` 注册即可。
+- 重连复用核心的 `Support\Retry`（指数退避 + 抖动），与下载器、云 API 调用共享同一套重试语义。
 
 ## 开发
 
