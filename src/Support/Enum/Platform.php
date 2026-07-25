@@ -16,6 +16,8 @@ enum Platform: string
     case Rtmp = 'rtmp';
     case Bilibili = 'bilibili';
     case Douyin = 'douyin';
+    case Huawei = 'huawei';
+    case WeixinChannels = 'weixin_channels';
 
     public function label(): string
     {
@@ -25,6 +27,8 @@ enum Platform: string
             self::Rtmp => '通用 RTMP（自建 SRS / nginx-rtmp）',
             self::Bilibili => 'B站（哔哩哔哩）直播',
             self::Douyin => '抖音直播',
+            self::Huawei => '华为云直播（CSS）',
+            self::WeixinChannels => '微信视频号直播',
         };
     }
 }

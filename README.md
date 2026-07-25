@@ -39,6 +39,8 @@ composer require kode/live
 | 通用 RTMP | `rtmp` | RTMP | FLV / HLS（可选） | 服务端 on_dvr 落桶 | 可选 `secret` 校验 |
 | B站直播 | `bilibili` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
 | 抖音直播 | `douyin` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
+| 华为云直播（CSS） | `huawei` | RTMP | FLV / HLS | OBS | `md5(callbackKey+t)` |
+| 微信视频号 | `weixin_channels` | RTMP | 可选（自有 CDN） | 开放平台 | `md5(排序参数+token)` |
 
 > 注：B站 / 抖音 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
 
@@ -137,6 +139,21 @@ if ($event instanceof RecordingReadyEvent) {
 }
 ```
 
+#### 3b. 注册本地监听器（按优先级、互不阻塞）
+
+除可选的 PSR-14 事件总线外，`LivePipeline` 支持用 `on()` 注册本地监听器。事件归一化后按
+`priority` 降序触发；**单个监听器抛错不会中断流水线**（错误被记录后跳过），编排更健壮。
+
+```php
+use Kode\Live\Support\Event\RecordingReadyEvent;
+use Kode\Live\Support\Event\StreamStartedEvent;
+
+$pipeline
+    ->on(StreamStartedEvent::class, fn ($e) => notifyStart($e->streamName()), priority: 100)
+    ->on(RecordingReadyEvent::class, fn ($e) => $pipeline->archive($e, '/data/'.$e->streamName().'.mp4'))
+    ->handleWebhook($rawBody, getallheaders());
+```
+
 ### 4. 注入对象存储签名（回放需要）
 
 ```php
@@ -175,6 +192,37 @@ $bili = new BilibiliPlatform(
 echo $bili->pushUrl(new StreamRequest('your-stream-key'))->url;   // rtmp://live-push.bilivideo.com/live-bvc/your-stream-key
 echo $bili->pullUrl(new StreamRequest('your-stream-key'), StreamProtocol::Flv)->url;
 ```
+
+### 5b. 华为云直播（CSS）/ 微信视频号
+
+```php
+use Kode\Live\LiveStreaming\Huawei\{HuaweiLiveConfig, HuaweiLivePlatform};
+use Kode\Live\LiveStreaming\WeixinChannels\{WeixinChannelsConfig, WeixinChannelsPlatform};
+use Kode\Live\Support\Dto\{RecordingConfig, StreamRequest};
+
+// 华为云：Key 防盗链 auth_key 算法与阿里云一致，地址签名直接复用 AliyunLiveSigner
+$huawei = new HuaweiLivePlatform(
+    new HuaweiLiveConfig(
+        pushDomain: 'push.huawei.example.com',
+        pullDomain: 'pull.huawei.example.com',
+        pushKey: '推流KEY', pullKey: '拉流KEY', callbackKey: '回调KEY',
+    ),
+    new RecordingConfig(bucket: 'records', region: 'cn-north-4'),
+);
+echo $huawei->pushUrl(new StreamRequest('live001'))->url;   // rtmp://.../live001?auth_key=...
+
+// 视频号：RTMP 推流（流名即开播码），回调用 md5(排序参数+token) 轻量验签
+$wx = new WeixinChannelsPlatform(
+    new WeixinChannelsConfig(callbackToken: 'your-token'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $wx->pushUrl(new StreamRequest('your-stream-key'))->url;
+```
+
+> 注：华为云 / 视频号回调的字段名与签名串拼接方式可能随控制台配置不同；本驱动采用通用
+> 方案并暴露 `callbackKey` / `callbackToken` 参数，接入时请以你自己的控制台回调配置为准对齐。
+> 视频号权威的微信消息加解密（msg_signature + AES）应在微信开放平台侧完成，本驱动仅做
+> 「配置驱动地址拼装 + 回调归一化」层。
 
 ## 开发
 

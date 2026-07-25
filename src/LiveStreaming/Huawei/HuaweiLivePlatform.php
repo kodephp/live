@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Kode\Live\LiveStreaming\Tencent;
+namespace Kode\Live\LiveStreaming\Huawei;
 
 use DateTimeImmutable;
 use Kode\Live\Contracts\LiveEvent;
@@ -22,7 +22,7 @@ use Kode\Live\Support\Event\StreamStartedEvent;
 use Kode\Live\Support\Event\UnknownEvent;
 use Kode\Live\Support\Exception\ConfigurationException;
 use Kode\Live\Support\Exception\InvalidWebhookException;
-use Kode\Live\Support\Signature\TencentCssSigner;
+use Kode\Live\Support\Signature\AliyunLiveSigner;
 use Kode\Live\Support\Validation\WebhookGuard;
 use Kode\Live\Support\Webhook\FieldExtractor;
 use Psr\Clock\ClockInterface;
@@ -30,31 +30,37 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * 腾讯云 CSS（云直播）平台驱动。
+ * 华为云直播（CSS）平台驱动。
  *
- * 录制由 CSS 侧按控制台/API 配置自动落 COS，本驱动负责推拉流地址签名、回放地址与回调验签解析。
+ * 华为云 Key 防盗链的 auth_key 算法（`md5("/uri-timestamp-rand-uid-key")`）与阿里云直播
+ * 鉴权 A 方式完全一致，故直接复用 {@see AliyunLiveSigner} 拼装带鉴权串的推拉流地址，
+ * 避免重复实现同一套数学。录制由 CSS 侧按配置自动落 OBS，本驱动负责地址签名与回调归一化。
+ *
+ * 注：华为云直播回调的字段名与签名串拼接方式随控制台配置可能不同，本驱动采用
+ * `sign = md5(callbackKey + t)` 的通用方案并暴露 callbackKey 参数；接入时请以你自己的
+ * 华为云直播控制台回调配置为准对齐字段名与密钥。
  */
-final class TencentCssPlatform extends AbstractLivePlatform
+final class HuaweiLivePlatform extends AbstractLivePlatform
 {
-    private readonly TencentCssSigner $signer;
+    private readonly AliyunLiveSigner $signer;
 
     public function __construct(
-        private readonly TencentCssConfig $config,
+        private readonly HuaweiLiveConfig $config,
         RecordingConfig $recordingConfig,
         ?SignedUrlProvider $signedUrlProvider = null,
-        ?TencentCssSigner $signer = null,
+        ?AliyunLiveSigner $signer = null,
         ClockInterface $clock = new SystemClock(),
         LoggerInterface $logger = new NullLogger(),
         int $defaultTtlSeconds = 3600,
         int $webhookMaxAgeSeconds = 300,
     ) {
         parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds, $webhookMaxAgeSeconds);
-        $this->signer = $signer ?? new TencentCssSigner();
+        $this->signer = $signer ?? new AliyunLiveSigner();
     }
 
     public function name(): Platform
     {
-        return Platform::TencentCss;
+        return Platform::Huawei;
     }
 
     public function supports(StreamProtocol $protocol): bool
@@ -63,7 +69,6 @@ final class TencentCssPlatform extends AbstractLivePlatform
             StreamProtocol::Rtmp,
             StreamProtocol::Flv,
             StreamProtocol::Hls,
-            StreamProtocol::WebRtc,
         ], true);
     }
 
@@ -77,7 +82,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
             $this->config->pushDomain,
             $app,
             $request->streamName,
-            $request->streamName,
+            '',
             $this->config->pushKey,
             $expires,
             $request->params,
@@ -92,14 +97,13 @@ final class TencentCssPlatform extends AbstractLivePlatform
 
         $app = $request->appName ?? $this->config->defaultAppName;
         $expires = $this->resolveExpiresTimestamp($request->expiresAt);
-        $pathStream = $request->streamName . $protocol->extension();
 
         $url = $this->signer->buildUrl(
             $protocol->scheme(),
             $this->config->pullDomain,
             $app,
-            $pathStream,
             $request->streamName,
+            $protocol->extension(),
             $this->config->pullKey,
             $expires,
             $request->params,
@@ -111,7 +115,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
     public function parseWebhook(string $payload, array $headers = []): LiveEvent
     {
         if ($this->config->callbackKey === '') {
-            throw ConfigurationException::missing('tencent.callbackKey');
+            throw ConfigurationException::missing('huawei.callbackKey');
         }
 
         /** @var mixed $decoded */
@@ -125,22 +129,22 @@ final class TencentCssPlatform extends AbstractLivePlatform
         $this->verifySignature($data);
         WebhookGuard::assertFresh($data, $this->clock->now()->getTimestamp(), $this->webhookMaxAgeSeconds);
 
-        $streamName = FieldExtractor::stringField($data, 'stream_id');
-        $appName = FieldExtractor::stringField($data, 'appname', $this->config->defaultAppName);
+        $streamName = FieldExtractor::stringField($data, 'stream', FieldExtractor::stringField($data, 'streamname'));
+        $appName = FieldExtractor::stringField($data, 'app', $this->config->defaultAppName);
         $occurredAt = $this->clock->now();
         $eventType = FieldExtractor::intField($data, 'event_type');
 
         return match ($eventType) {
-            1 => new StreamStartedEvent(Platform::TencentCss, $streamName, $occurredAt, $data),
-            0 => new StreamEndedEvent(Platform::TencentCss, $streamName, $occurredAt, $data),
+            1 => new StreamStartedEvent(Platform::Huawei, $streamName, $occurredAt, $data),
+            0 => new StreamEndedEvent(Platform::Huawei, $streamName, $occurredAt, $data),
             100 => new RecordingReadyEvent(
-                Platform::TencentCss,
+                Platform::Huawei,
                 $streamName,
                 $occurredAt,
                 $this->buildRecording($streamName, $appName, $data),
                 $data,
             ),
-            default => new UnknownEvent(Platform::TencentCss, $streamName, $occurredAt, $data),
+            default => new UnknownEvent(Platform::Huawei, $streamName, $occurredAt, $data),
         };
     }
 
@@ -152,9 +156,9 @@ final class TencentCssPlatform extends AbstractLivePlatform
     private function verifySignature(array $data): void
     {
         $sign = FieldExtractor::stringField($data, 'sign');
-        $t = FieldExtractor::stringField($data, 't');
+        $t = FieldExtractor::stringField($data, 't', FieldExtractor::stringField($data, 'timestamp'));
         if ($sign === '' || $t === '') {
-            throw InvalidWebhookException::malformed('缺少 sign 或 t 字段');
+            throw InvalidWebhookException::malformed('缺少 sign 或时间戳字段');
         }
 
         $expected = md5($this->config->callbackKey . $t);
@@ -168,7 +172,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
      */
     private function buildRecording(string $streamName, string $appName, array $data): Recording
     {
-        $videoUrl = FieldExtractor::stringField($data, 'video_url');
+        $videoUrl = FieldExtractor::stringField($data, 'video_url', FieldExtractor::stringField($data, 'file_url'));
         $objectKey = $videoUrl !== ''
             ? ltrim((string) parse_url($videoUrl, \PHP_URL_PATH), '/')
             : $this->recordingConfig->resolveObjectKey($appName, $streamName);

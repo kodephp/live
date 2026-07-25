@@ -16,6 +16,7 @@ use Kode\Live\Support\Event\UnknownEvent;
 use Kode\Live\Support\Exception\ConfigurationException;
 use Kode\Live\Support\Exception\InvalidWebhookException;
 use Kode\Live\Support\Validation\WebhookGuard;
+use Kode\Live\Support\Webhook\FieldExtractor;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -80,11 +81,11 @@ final class DouyinPlatform extends AbstractStreamKeyPlatform
 
         /** @var array<string, mixed> $data */
         $data = $decoded;
-        $this->verifySign($data);
+        FieldExtractor::verifySortedMd5($data, $this->config->callbackSecret);
         WebhookGuard::assertFresh($data, $this->clock->now()->getTimestamp(), $this->webhookMaxAgeSeconds);
 
-        $event = $this->stringField($data, 'event', $this->stringField($data, 'action'));
-        $stream = $this->stringField($data, 'stream', $this->stringField($data, 'room_id'));
+        $event = FieldExtractor::stringField($data, 'event', FieldExtractor::stringField($data, 'action'));
+        $stream = FieldExtractor::stringField($data, 'stream', FieldExtractor::stringField($data, 'room_id'));
         $occurredAt = $this->clock->now();
 
         return match ($event) {
@@ -92,40 +93,5 @@ final class DouyinPlatform extends AbstractStreamKeyPlatform
             'live_finished', 'live_end', 'end' => new StreamEndedEvent($this->name(), $stream, $occurredAt, $data),
             default => new UnknownEvent($this->name(), $stream, $occurredAt, $data),
         };
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function verifySign(array $data): void
-    {
-        $sign = $this->stringField($data, 'sign');
-        if ($sign === '') {
-            throw InvalidWebhookException::malformed('缺少 sign 字段');
-        }
-
-        $params = $data;
-        unset($params['sign']);
-        ksort($params);
-
-        $raw = '';
-        foreach ($params as $key => $value) {
-            $raw .= $key . '=' . (string) $value . '&';
-        }
-        $raw .= 'secret=' . $this->config->callbackSecret;
-
-        if (!hash_equals(md5($raw), $sign)) {
-            throw InvalidWebhookException::signatureMismatch();
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function stringField(array $data, string $key, string $default = ''): string
-    {
-        $value = $data[$key] ?? null;
-
-        return \is_scalar($value) ? (string) $value : $default;
     }
 }
