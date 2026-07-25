@@ -1,0 +1,12 @@
+# Cursor Rules — kode/live
+
+本仓库的完整工程规则以 `AGENTS.md` 为唯一权威来源，请先阅读它。
+
+核心约束（详见 AGENTS.md）：
+- PHP 8.3+，每个文件 `declare(strict_types=1);`，命名空间 `Kode\Live\`，PSR-4 → src/。
+- 面向 `Contracts/` 接口编程；DTO 全部 `final readonly class`；魔法值用 enum。
+- 不做独立存储抽象层：存储 = 直播驱动的 bucket 配置；回放/下载签名 URL 用 SignedUrlProvider 委托。
+- 分层依赖严格单向：Contracts ← Support ← 各功能模块 ← Pipeline ← LiveManager。
+- 安全红线：密钥永不入日志/异常/输出；webhook 必须先验签；下载路径禁止穿越。
+- 质量门禁：PHPStan level 8 + PSR-12 + PHPUnit 全绿（composer check）。
+- 新增平台驱动照 `.workbuddy/skills/add-live-platform/SKILL.md` 走。

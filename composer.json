@@ -1,0 +1,69 @@
+{
+    "name": "kode/live",
+    "description": "多平台直播综合包：推拉流地址签名、录制自动落对象存储、回放与断点续传下载的统一编排（PHP 8.3+）。",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "live",
+        "streaming",
+        "rtmp",
+        "srt",
+        "hls",
+        "recording",
+        "vod",
+        "playback",
+        "tencent-css",
+        "aliyun-live"
+    ],
+    "authors": [
+        {
+            "name": "kode",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "ext-json": "*",
+        "ext-hash": "*",
+        "guzzlehttp/guzzle": "^7.8",
+        "psr/log": "^3.0",
+        "psr/event-dispatcher": "^1.0",
+        "psr/http-message": "^2.0",
+        "psr/clock": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.2",
+        "phpstan/phpstan": "^1.11",
+        "friendsofphp/php-cs-fixer": "^3.58"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kode\\Live\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kode\\Live\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix",
+        "check": [
+            "@cs",
+            "@analyse",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "php-http/discovery": false
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
