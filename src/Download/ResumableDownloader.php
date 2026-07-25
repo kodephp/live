@@ -11,6 +11,7 @@ use Kode\Live\Support\Dto\DownloadOptions;
 use Kode\Live\Support\Dto\DownloadResult;
 use Kode\Live\Support\Exception\DownloadException;
 use Kode\Live\Support\Http\GuzzleClientFactory;
+use Kode\Live\Support\Validation\AssertSafe;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -121,6 +122,8 @@ final class ResumableDownloader implements Downloader
             fclose($handle);
         }
 
+        $this->verifyIntegrity($destination, $options, $written);
+
         return new DownloadResult($destination, $written, $resumed, $this->contentType($response));
     }
 
@@ -131,11 +134,31 @@ final class ResumableDownloader implements Downloader
         return $header !== '' ? $header : null;
     }
 
+    /**
+     * 下载后完整性校验：大小与（可选）SHA-256。
+     *
+     * $written 为本次落盘后的文件总字节数（含续传前的已有部分）。
+     */
+    private function verifyIntegrity(string $destination, DownloadOptions $options, int $written): void
+    {
+        if ($options->expectedSize !== null && $written !== $options->expectedSize) {
+            throw DownloadException::invalidSize($options->expectedSize, $written);
+        }
+
+        if ($options->expectedSha256 !== null) {
+            $actual = hash_file('sha256', $destination);
+            if ($actual === false || !hash_equals(strtolower($options->expectedSha256), $actual)) {
+                throw DownloadException::invalidChecksum();
+            }
+        }
+    }
+
     private function assertSafeDestination(string $destination): void
     {
-        if ($destination === '' || str_contains($destination, "\0")) {
+        if ($destination === '') {
             throw DownloadException::unsafePath($destination);
         }
+        AssertSafe::noPathTraversal($destination);
 
         $dir = \dirname($destination);
         if (!is_dir($dir)) {

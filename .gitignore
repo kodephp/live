@@ -10,3 +10,7 @@ coverage/
 .DS_Store
 .idea/
 .vscode/
+
+# 本地规则 / 文档（不纳入版本控制，按需本地保留）
+AGENTS.md
+CHANGELOG.md

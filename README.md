@@ -143,7 +143,7 @@ echo $bili->pullUrl(new StreamRequest('your-stream-key'), StreamProtocol::Flv)->
 composer check   # = php-cs-fixer(dry-run) + phpstan level 8 + phpunit
 ```
 
-工程规则见 [`AGENTS.md`](AGENTS.md)（对所有 AI 编码助手/IDE 生效）。
+工程规则见 [`.cursorrules`](.cursorrules) 与 [`.github/copilot-instructions.md`](.github/copilot-instructions.md)（对所有 AI 编码助手 / IDE 生效）。
 新增平台驱动见 [`.workbuddy/skills/add-live-platform/SKILL.md`](.workbuddy/skills/add-live-platform/SKILL.md)。
 
 ## License

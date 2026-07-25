@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Kode\Live\Support\Dto;
 
 use DateTimeImmutable;
-use Kode\Live\Support\Exception\ConfigurationException;
+use Kode\Live\Support\Validation\AssertSafe;
 
 /**
  * 生成推拉流地址的请求参数。
@@ -24,8 +24,9 @@ final readonly class StreamRequest
         public ?DateTimeImmutable $expiresAt = null,
         public array $params = [],
     ) {
-        if ($streamName === '') {
-            throw ConfigurationException::missing('streamName');
+        AssertSafe::identifier($streamName, 'streamName');
+        if ($appName !== null) {
+            AssertSafe::identifier($appName, 'appName');
         }
     }
 

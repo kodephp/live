@@ -25,4 +25,14 @@ final class DownloadException extends LiveException
     {
         return new self(\sprintf('下载失败：%s', $reason), 0, $previous);
     }
+
+    public static function invalidChecksum(): self
+    {
+        return new self('下载文件校验失败：SHA-256 不匹配（文件可能已损坏或被篡改）');
+    }
+
+    public static function invalidSize(int $expected, int $actual): self
+    {
+        return new self(\sprintf('下载文件大小不符：期望 %d 字节，实际 %d 字节', $expected, $actual));
+    }
 }

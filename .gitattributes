@@ -9,7 +9,6 @@
 /.php-cs-fixer.dist.php export-ignore
 /phpstan.neon.dist  export-ignore
 /phpunit.xml.dist   export-ignore
-/AGENTS.md          export-ignore
 /.cursorrules       export-ignore
 
 *.php text eol=lf

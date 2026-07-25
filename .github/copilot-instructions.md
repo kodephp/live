@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions — kode/live
 
-完整工程规则见仓库根目录 **`AGENTS.md`**（唯一权威来源），请优先遵循。要点：
+本仓库的完整工程规则要点如下（规则文件自包含；亦见 `.cursorrules` 与 `.cursor/rules/kode-live.mdc`）：
 
 - 多平台直播综合包，PHP 8.3+；每个文件 `declare(strict_types=1);`，命名空间 `Kode\Live\`（PSR-4 → `src/`）。
 - 面向 `Contracts/` 接口编程；DTO 一律 `final readonly class`；协议/格式/事件用 `enum`，禁止魔法值。
