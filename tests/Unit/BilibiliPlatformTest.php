@@ -95,4 +95,22 @@ final class BilibiliPlatformTest extends TestCase
         );
         $platform->parseWebhook((string) json_encode(['event' => 'live_start', 'sign' => 'x']));
     }
+
+    public function testWebhookRejectsReplay(): void
+    {
+        $clock = FrozenClock::at(1_700_000_000);
+        $platform = new BilibiliPlatform(
+            new BilibiliConfig(callbackSecret: self::SECRET),
+            new RecordingConfig(bucket: 'b', region: 'r'),
+            clock: $clock,
+            webhookMaxAgeSeconds: 300,
+        );
+
+        // 一小时前的回调，超出 300s 新鲜窗口。
+        $payload = $this->sign(['event' => 'live_start', 'stream' => 'k', 't' => 1_700_000_000 - 3600]);
+
+        $this->expectException(InvalidWebhookException::class);
+
+        $platform->parseWebhook($payload);
+    }
 }

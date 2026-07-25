@@ -63,4 +63,66 @@ final class AssertSafe
             throw DownloadException::unsafePath($path);
         }
     }
+
+    /**
+     * 下载源地址的 SSRF 防护（轻量级、不做 DNS 解析）。
+     *
+     * 仅放行 http/https，并拒绝：环回地址（127.0.0.1 / ::1）、私有网段
+     * （10/8、172.16/12、192.168/16、fc00::/7）、链路本地与云元数据地址
+     * （169.254.169.254 等）。以域名形式传入时不在此做反向解析——DNS 重绑定的
+     * 防御应在实际发起请求时由底层 HTTP 客户端处理（超出纯校验范围）。
+     *
+     * @throws DownloadException 协议非法、结构残缺或命中私有/保留地址
+     */
+    public static function safeUrl(string $url): void
+    {
+        /** @var array<string, mixed>|false $parts */
+        $parts = parse_url($url);
+        if (!\is_array($parts) || !isset($parts['scheme'], $parts['host'])) {
+            throw DownloadException::unsafeUrl($url);
+        }
+
+        $scheme = strtolower((string) $parts['scheme']);
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            throw DownloadException::unsafeUrl($url);
+        }
+
+        $host = strtolower((string) $parts['host']);
+
+        // 方括号包裹的 IPv6 字面量：剥离括号后单独判定。
+        if (str_starts_with($host, '[')) {
+            $ip = trim($host, '[]');
+            if (!self::isPublicIp($ip)) {
+                throw DownloadException::unsafeUrl($url);
+            }
+
+            return;
+        }
+
+        // IPv4 字面量或其它 IP 形式。
+        if (filter_var($host, \FILTER_VALIDATE_IP) !== false && !self::isPublicIp($host)) {
+            throw DownloadException::unsafeUrl($url);
+        }
+        // 非 IP 字面量的域名：放行（DNS 重绑定不在此处理）。
+    }
+
+    /**
+     * 判断一个 IP 是否为「可公开访问」的地址（即非环回、非私有、非保留）。
+     */
+    private static function isPublicIp(string $ip): bool
+    {
+        if (filter_var($ip, \FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+        // filter 标志默认不覆盖 127/8 环回，需显式拦截。
+        if ($ip === '127.0.0.1' || $ip === '::1') {
+            return false;
+        }
+
+        return filter_var(
+            $ip,
+            \FILTER_VALIDATE_IP,
+            \FILTER_FLAG_NO_PRIV_RANGE | \FILTER_FLAG_NO_RES_RANGE,
+        ) !== false;
+    }
 }

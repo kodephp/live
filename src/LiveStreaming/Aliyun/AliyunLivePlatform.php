@@ -23,6 +23,7 @@ use Kode\Live\Support\Event\UnknownEvent;
 use Kode\Live\Support\Exception\ConfigurationException;
 use Kode\Live\Support\Exception\InvalidWebhookException;
 use Kode\Live\Support\Signature\AliyunLiveSigner;
+use Kode\Live\Support\Validation\WebhookGuard;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -44,8 +45,9 @@ final class AliyunLivePlatform extends AbstractLivePlatform
         ClockInterface $clock = new SystemClock(),
         LoggerInterface $logger = new NullLogger(),
         int $defaultTtlSeconds = 3600,
+        int $webhookMaxAgeSeconds = 300,
     ) {
-        parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds);
+        parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds, $webhookMaxAgeSeconds);
         $this->signer = $signer ?? new AliyunLiveSigner();
     }
 
@@ -118,6 +120,7 @@ final class AliyunLivePlatform extends AbstractLivePlatform
         $data = $decoded;
 
         $this->verifyToken($data, $headers);
+        WebhookGuard::assertFresh($data, $this->clock->now()->getTimestamp(), $this->webhookMaxAgeSeconds);
 
         $streamName = $this->stringField($data, 'id', $this->stringField($data, 'stream'));
         $appName = $this->stringField($data, 'app', $this->config->defaultAppName);

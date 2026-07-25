@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Kode\Live;
 
 use Kode\Live\Contracts\LivePlatform;
+use Kode\Live\Support\Dto\Recording;
+use Kode\Live\Support\Dto\StreamRequest;
+use Kode\Live\Support\Dto\StreamUrlSet;
 use Kode\Live\Support\Enum\Platform;
+use Kode\Live\Support\Enum\StreamProtocol;
 use Kode\Live\Support\Exception\ConfigurationException;
 
 /**
@@ -85,5 +89,42 @@ final class LiveManager
     private function key(Platform|string $platform): string
     {
         return $platform instanceof Platform ? $platform->value : $platform;
+    }
+
+    /**
+     * 一次性取得一路直播的推流地址、所需协议的拉流地址，以及（可选）回放地址。
+     *
+     * 省去分别调用 pushUrl / pullUrl / playbackUrl 的样板代码。
+     *
+     * @param list<StreamProtocol> $pullProtocols 需要生成的拉流协议，默认 FLV + HLS
+     */
+    public function urlBundle(
+        Platform|string $platform,
+        StreamRequest $request,
+        array $pullProtocols = [StreamProtocol::Flv, StreamProtocol::Hls],
+        ?Recording $recording = null,
+    ): StreamUrlSet {
+        $driver = $this->driver($platform);
+
+        $push = $driver->pushUrl($request);
+
+        $pull = [];
+        foreach ($pullProtocols as $protocol) {
+            if ($driver->supports($protocol)) {
+                $pull[] = $driver->pullUrl($request, $protocol);
+            }
+        }
+
+        $playback = null;
+        if ($recording !== null) {
+            try {
+                $playback = $driver->playbackUrl($recording);
+            } catch (\Throwable) {
+                // 无 SignedUrlProvider 且录制无 sourceUrl 等场景：回放地址留空，不阻断主流程。
+                $playback = null;
+            }
+        }
+
+        return new StreamUrlSet($push, $pull, $playback);
     }
 }

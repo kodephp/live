@@ -11,6 +11,7 @@ use Kode\Live\Support\Dto\DownloadOptions;
 use Kode\Live\Support\Dto\DownloadResult;
 use Kode\Live\Support\Exception\DownloadException;
 use Kode\Live\Support\Http\GuzzleClientFactory;
+use Kode\Live\Support\Retry;
 use Kode\Live\Support\Validation\AssertSafe;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -36,28 +37,24 @@ final class ResumableDownloader implements Downloader
     public function download(string $sourceUrl, string $destination, ?DownloadOptions $options = null): DownloadResult
     {
         $options ??= new DownloadOptions();
+        AssertSafe::safeUrl($sourceUrl);
         $this->assertSafeDestination($destination);
 
-        $attempt = 0;
-        $lastError = null;
-
-        while ($attempt <= $options->maxRetries) {
-            try {
-                return $this->attempt($sourceUrl, $destination, $options);
-            } catch (GuzzleException $e) {
-                $lastError = $e;
-                ++$attempt;
+        /** @var DownloadResult $result */
+        $result = Retry::backoff(
+            fn () => $this->attempt($sourceUrl, $destination, $options),
+            $options->maxRetries,
+            onRetry: function (int $attempt, \Throwable $e) use ($options): void {
                 $this->logger->warning('下载失败，准备重试', [
                     'attempt' => $attempt,
                     'max' => $options->maxRetries,
+                    'error' => $e->getMessage(),
                 ]);
-            }
-        }
-
-        throw DownloadException::transfer(
-            $lastError instanceof \Throwable ? $lastError->getMessage() : '未知错误',
-            $lastError,
+            },
+            shouldRetry: static fn (\Throwable $e): bool => $e instanceof GuzzleException,
         );
+
+        return $result;
     }
 
     /**

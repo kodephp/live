@@ -16,6 +16,11 @@ final class DownloadException extends LiveException
         return new self(\sprintf('目标路径非法或存在穿越风险：%s', $path));
     }
 
+    public static function unsafeUrl(string $url): self
+    {
+        return new self(\sprintf('下载源地址被拒绝（疑似 SSRF / 私有地址 / 非法协议）：%s', $url));
+    }
+
     public static function notWritable(string $path): self
     {
         return new self(\sprintf('目标目录不可写：%s', $path));

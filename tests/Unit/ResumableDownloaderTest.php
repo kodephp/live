@@ -133,4 +133,22 @@ final class ResumableDownloaderTest extends TestCase
 
         $downloader->download('https://example.com/a.mp4', $dest);
     }
+
+    public function testDownloadRejectsSsrfLoopback(): void
+    {
+        $downloader = new ResumableDownloader();
+
+        $this->expectException(DownloadException::class);
+
+        $downloader->download('http://127.0.0.1/secret', $this->tmpDir . '/out.mp4');
+    }
+
+    public function testDownloadRejectsSsrfMetadataEndpoint(): void
+    {
+        $downloader = new ResumableDownloader();
+
+        $this->expectException(DownloadException::class);
+
+        $downloader->download('http://169.254.169.254/latest/meta-data', $this->tmpDir . '/out.mp4');
+    }
 }

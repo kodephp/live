@@ -28,6 +28,7 @@ abstract class AbstractLivePlatform implements LivePlatform
         protected readonly ClockInterface $clock = new SystemClock(),
         protected readonly LoggerInterface $logger = new NullLogger(),
         protected readonly int $defaultTtlSeconds = 3600,
+        protected readonly int $webhookMaxAgeSeconds = 300,
     ) {
     }
 

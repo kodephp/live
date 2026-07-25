@@ -42,6 +42,17 @@ composer require kode/live
 
 > 注：B站 / 抖音 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
 
+## 安全与健壮性
+
+本包把安全作为一等公民，关键能力开箱即用：
+
+- **Webhook 重放防护**：各平台回调验签通过后，额外校验回调时间戳（`t` / `timestamp` 等）是否落在新鲜窗口内（默认 300s，可通过构造参数 `webhookMaxAgeSeconds` 调整），超出即判定为重放攻击并拒绝。
+- **下载器 SSRF 防护**：`ResumableDownloader` 在发起请求前调用 `AssertSafe::safeUrl()`，仅放行 `http/https`，并拒绝环回（127.0.0.1 / ::1）、私有网段（10/8、172.16/12、192.168/16、fc00::/7）与云元数据地址（169.254.169.254）。
+- **下载完整性**：支持 `expectedSize` / `expectedSha256`，落盘后用 `hash_equals` 时序安全比对，防止文件损坏或被篡改。
+- **输入安全**：推拉流地址使用的流名 / 应用名经 `AssertSafe::identifier()` 白名单校验（仅 `[A-Za-z0-9._-]`），下载落盘路径经穿越防护，杜绝 URL 注入与路径穿越。
+- **时序安全验签**：所有 webhook 签名比对均使用 `hash_equals()`，避免时序侧信道。
+- **指数退避重试**：网络类瞬时失败通过 `Support\Retry` 进行指数退避 + 抖动重试，仅对可恢复异常（如下载的 `GuzzleException`）重试，校验失败不重试。
+
 ## 快速上手
 
 ### 1. 生成推拉流地址
@@ -77,6 +88,34 @@ $manager = (new LiveManager())
     ->extend(Platform::AliyunLive, fn () => $aliyunPlatform); // 惰性构建
 
 $manager->driver(Platform::TencentCss)->pushUrl(new StreamRequest('live001'));
+```
+
+### 2b. 一次性取齐推流 / 拉流 / 回放地址
+
+```php
+use Kode\Live\Support\Dto\Recording;
+
+// 推流地址 + FLV/HLS 拉流地址一次性拿到；传入 Recording 还可附带回放地址
+$set = $manager->urlBundle(
+    platform: Platform::Bilibili,
+    request: new StreamRequest('your-stream-key'),
+    pullProtocols: [StreamProtocol::Flv, StreamProtocol::Hls],
+    recording: $recording, // 可选
+);
+
+echo $set->push->url;                  // 推流地址
+echo $set->pull(StreamProtocol::Hls)?->url; // 指定协议拉流地址
+echo $set->playback?->url;            // 回放签名地址（若提供 recording）
+```
+
+### 2c. 事件序列化（落库 / 消息队列 / 日志）
+
+所有事件均实现 `JsonSerializable`，可直接 `json_encode` 或调用 `toArray()`：
+
+```php
+$event = $platform->parseWebhook($rawBody);
+$payload = $event->toArray();         // ['platform'=>..., 'streamName'=>..., 'occurredAt'=>..., 'type'=>..., 'raw'=>...]
+file_put_contents('events.log', json_encode($event) . "\n");
 ```
 
 ### 3. 处理回调 → 回放 / 下载（Pipeline 编排）

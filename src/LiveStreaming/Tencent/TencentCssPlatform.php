@@ -23,6 +23,7 @@ use Kode\Live\Support\Event\UnknownEvent;
 use Kode\Live\Support\Exception\ConfigurationException;
 use Kode\Live\Support\Exception\InvalidWebhookException;
 use Kode\Live\Support\Signature\TencentCssSigner;
+use Kode\Live\Support\Validation\WebhookGuard;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -44,8 +45,9 @@ final class TencentCssPlatform extends AbstractLivePlatform
         ClockInterface $clock = new SystemClock(),
         LoggerInterface $logger = new NullLogger(),
         int $defaultTtlSeconds = 3600,
+        int $webhookMaxAgeSeconds = 300,
     ) {
-        parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds);
+        parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds, $webhookMaxAgeSeconds);
         $this->signer = $signer ?? new TencentCssSigner();
     }
 
@@ -120,6 +122,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
         $data = $decoded;
 
         $this->verifySignature($data);
+        WebhookGuard::assertFresh($data, $this->clock->now()->getTimestamp(), $this->webhookMaxAgeSeconds);
 
         $streamName = $this->stringField($data, 'stream_id');
         $appName = $this->stringField($data, 'appname', $this->config->defaultAppName);

@@ -66,7 +66,8 @@ final class TencentCssPlatformTest extends TestCase
 
     public function testParseWebhookRecordingReady(): void
     {
-        $t = '1700000000';
+        // 与 FrozenClock(EXPIRES - 3600) 同刻的时间戳，处于新鲜窗口内。
+        $t = (string) (self::EXPIRES - 3600);
         $payload = json_encode([
             'event_type' => 100,
             'stream_id' => 's1',
@@ -86,5 +87,22 @@ final class TencentCssPlatformTest extends TestCase
         self::assertSame('my-bucket', $event->recording->bucket);
         self::assertSame('live/s1/20260101/120000.mp4', $event->recording->objectKey);
         self::assertSame(2048, $event->recording->sizeBytes);
+    }
+
+    public function testParseWebhookRejectsReplay(): void
+    {
+        // 时间戳距固定时钟（EXPIRES - 3600）已超过默认 300s 窗口。
+        $t = (string) (self::EXPIRES - 3600 - 3600);
+        $payload = json_encode([
+            'event_type' => 1,
+            'stream_id' => 's1',
+            't' => $t,
+            'sign' => md5('cbkey' . $t),
+        ]);
+        self::assertIsString($payload);
+
+        $this->expectException(InvalidWebhookException::class);
+
+        $this->makePlatform()->parseWebhook($payload);
     }
 }

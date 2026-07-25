@@ -92,4 +92,21 @@ final class DouyinPlatformTest extends TestCase
         );
         $platform->parseWebhook((string) json_encode(['event' => 'live_started', 'sign' => 'x']));
     }
+
+    public function testWebhookRejectsReplay(): void
+    {
+        $clock = FrozenClock::at(1_700_000_000);
+        $platform = new DouyinPlatform(
+            new DouyinConfig(callbackSecret: self::SECRET),
+            new RecordingConfig(bucket: 'b', region: 'r'),
+            clock: $clock,
+            webhookMaxAgeSeconds: 300,
+        );
+
+        $payload = $this->sign(['event' => 'live_started', 'stream' => 'k', 't' => 1_700_000_000 - 3600]);
+
+        $this->expectException(InvalidWebhookException::class);
+
+        $platform->parseWebhook($payload);
+    }
 }

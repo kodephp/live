@@ -15,6 +15,7 @@ use Kode\Live\Support\Event\StreamStartedEvent;
 use Kode\Live\Support\Event\UnknownEvent;
 use Kode\Live\Support\Exception\ConfigurationException;
 use Kode\Live\Support\Exception\InvalidWebhookException;
+use Kode\Live\Support\Validation\WebhookGuard;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -35,8 +36,9 @@ final class DouyinPlatform extends AbstractStreamKeyPlatform
         ClockInterface $clock = new SystemClock(),
         LoggerInterface $logger = new NullLogger(),
         int $defaultTtlSeconds = 3600,
+        int $webhookMaxAgeSeconds = 300,
     ) {
-        parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds);
+        parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds, $webhookMaxAgeSeconds);
     }
 
     public function name(): Platform
@@ -79,6 +81,7 @@ final class DouyinPlatform extends AbstractStreamKeyPlatform
         /** @var array<string, mixed> $data */
         $data = $decoded;
         $this->verifySign($data);
+        WebhookGuard::assertFresh($data, $this->clock->now()->getTimestamp(), $this->webhookMaxAgeSeconds);
 
         $event = $this->stringField($data, 'event', $this->stringField($data, 'action'));
         $stream = $this->stringField($data, 'stream', $this->stringField($data, 'room_id'));
