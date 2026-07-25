@@ -14,3 +14,7 @@ coverage/
 # 本地规则 / 文档（不纳入版本控制，按需本地保留）
 AGENTS.md
 CHANGELOG.md
+
+# 本地开发工具（规则 / 技能 / 记忆）：仅本地保留，不纳入版本控制
+.cursor/
+.workbuddy/
