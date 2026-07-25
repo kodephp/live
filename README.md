@@ -36,6 +36,11 @@ composer require kode/live
 | --- | --- | --- | --- | --- | --- |
 | 腾讯云 CSS | `tencent_css` | RTMP | FLV / HLS / WebRTC | COS | `md5(key+t)` |
 | 阿里云直播 | `aliyun_live` | RTMP | FLV / HLS | OSS | 回调令牌 token |
+| 通用 RTMP | `rtmp` | RTMP | FLV / HLS（可选） | 服务端 on_dvr 落桶 | 可选 `secret` 校验 |
+| B站直播 | `bilibili` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
+| 抖音直播 | `douyin` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
+
+> 注：B站 / 抖音 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
 
 ## 快速上手
 
@@ -105,6 +110,31 @@ final class CosSignedUrlProvider implements SignedUrlProvider
         // 内部用腾讯云 COS SDK 生成预签名 URL
     }
 }
+```
+
+### 5. 通用 RTMP / B站 / 抖音
+
+```php
+use Kode\Live\LiveStreaming\Rtmp\{RtmpConfig, RtmpPlatform};
+use Kode\Live\LiveStreaming\Bilibili\{BilibiliConfig, BilibiliPlatform};
+use Kode\Live\Support\Dto\{RecordingConfig, StreamRequest};
+use Kode\Live\Support\Enum\StreamProtocol;
+
+// 自建 SRS / nginx-rtmp：域名 + AppName + 流名拼装，可选 ?key= 鉴权
+$rtmp = new RtmpPlatform(
+    new RtmpConfig(pushDomain: 'rtmp.your-srs.com', pullDomain: 'pull.your-srs.com', appName: 'live', authSecret: 'server-key'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $rtmp->pushUrl(new StreamRequest('room-1'))->url;          // rtmp://rtmp.your-srs.com/live/room-1?key=server-key
+echo $rtmp->pullUrl(new StreamRequest('room-1'), StreamProtocol::Flv)->url;
+
+// B站：默认域名内置，流名即推流密钥；回调需配置 callbackSecret
+$bili = new BilibiliPlatform(
+    new BilibiliConfig(callbackSecret: 'your-callback-secret'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $bili->pushUrl(new StreamRequest('your-stream-key'))->url;   // rtmp://live-push.bilivideo.com/live-bvc/your-stream-key
+echo $bili->pullUrl(new StreamRequest('your-stream-key'), StreamProtocol::Flv)->url;
 ```
 
 ## 开发
