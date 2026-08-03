@@ -43,6 +43,10 @@ composer require kode/live
 | 华为云直播（CSS） | `huawei` | RTMP | FLV / HLS | OBS | `md5(callbackKey+t)` |
 | 微信视频号 | `weixin_channels` | RTMP | 可选（自有 CDN） | 开放平台 | `md5(排序参数+token)` |
 | 快手直播 | `kuaishou` | RTMP | FLV / HLS | 开放平台 VOD | `md5(排序参数+secret)` |
+| 七牛直播云（Pili） | `qiniu` | RTMP | HLS / FLV | 开放平台 VOD | `md5(排序参数+secret)` |
+| 又拍云直播 | `upyun` | RTMP | HLS / FLV | 开放平台 | `md5(排序参数+secret)` |
+| Cloudflare Stream | `cloudflare` | RTMPS | HLS | Stream 存储 | `md5(排序参数+secret)` |
+| 声网 Agora（推流到 CDN） | `agora` | RTMP（到 CDN） | 可选（CDN 域名） | 录制 / 媒体网关 | `md5(排序参数+secret)` |
 
 > 注：B站 / 抖音 / 快手 真实的播放鉴权串与开播/关播由厂商开放平台 API 下发，本包驱动做「配置驱动的可复现地址拼装」+ 回调归一化，便于在服务端统一编排与测试；需要完整生命周期管理时请搭配官方 SDK。
 
@@ -271,6 +275,63 @@ $ks = new KuaishouPlatform(
 echo $ks->pushUrl(new StreamRequest('your-stream-key'))->url;   // rtmp://live-push.kuaishou.com/live/your-stream-key
 echo $ks->pullUrl(new StreamRequest('your-stream-key'), StreamProtocol::Flv)->url;
 ```
+
+### 5d. 七牛 / 又拍云 / Cloudflare / 声网 Agora
+
+这四个平台同样遵循「配置驱动地址拼装 + 回调归一化」约定：`LiveManager` 不内置任何硬编码驱动，
+统一通过 `register()` / `extend()` 注入，**无需改动核心**。
+
+```php
+use Kode\Live\LiveManager;
+use Kode\Live\LiveStreaming\Qiniu\{QiniuConfig, QiniuPlatform};
+use Kode\Live\LiveStreaming\Upyun\{UpyunConfig, UpyunPlatform};
+use Kode\Live\LiveStreaming\Cloudflare\{CloudflareConfig, CloudflarePlatform};
+use Kode\Live\LiveStreaming\Agora\{AgoraConfig, AgoraPlatform};
+use Kode\Live\Support\Dto\{RecordingConfig, StreamRequest};
+use Kode\Live\Support\Enum\{Platform, StreamProtocol};
+
+// 七牛（hub 即 AppName）：rtmp://pili-publish.qiniu.com/{hub}/{stream}
+$qiniu = new QiniuPlatform(
+    new QiniuConfig(hub: 'my-hub', callbackSecret: 'your-callback-secret'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $qiniu->pushUrl(new StreamRequest('stream-1'))->url;        // rtmp://pili-publish.qiniu.com/my-hub/stream-1
+echo $qiniu->pullUrl(new StreamRequest('stream-1'), StreamProtocol::Hls)->url;
+
+// 又拍云（推送域名为 服务名.uplive-upaiyun.com）
+$upyun = new UpyunPlatform(
+    new UpyunConfig(pushDomain: 'svc.uplive-upaiyun.com', callbackSecret: 'your-callback-secret'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $upyun->pushUrl(new StreamRequest('stream-1'))->url;        // rtmp://svc.uplive-upaiyun.com/stream-1
+
+// Cloudflare Stream（RTMPS 摄入 + HLS 播放，路径含 manifest.m3u8）
+$cf = new CloudflarePlatform(
+    new CloudflareConfig(callbackSecret: 'your-callback-secret'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $cf->pushUrl(new StreamRequest('live-input-key'))->url;     // rtmps://live.cloudflare.com:443/live/live-input-key
+echo $cf->pullUrl(new StreamRequest('video-id'), StreamProtocol::Hls)->url;
+
+// 声网 Agora「推流到 CDN」：rtmp://push.agora.io/{app}/{stream}
+$agora = new AgoraPlatform(
+    new AgoraConfig(callbackSecret: 'your-callback-secret'),
+    new RecordingConfig(bucket: 'records', region: 'local'),
+);
+echo $agora->pushUrl(new StreamRequest('channel-1', appName: 'live'))->url; // rtmp://push.agora.io/live/channel-1
+
+// 统一注入管理器，按枚举取用
+$manager = (new LiveManager())
+    ->register($qiniu)
+    ->extend(Platform::Cloudflare, fn () => $cf); // 惰性构建
+
+$manager->driver(Platform::Qiniu)->pushUrl(new StreamRequest('stream-1'));
+```
+
+> 注：四家平台真实的播放鉴权串、推流地址（七牛 publishToken / 又拍云 token / Cloudflare Live Input
+> STREAM_KEY / Agora RTC Token）均由各自开放平台 API 下发，接入时请用官方 SDK 取回后覆盖默认域名 /
+> 密钥。本包驱动只做「配置驱动地址拼装 + 回调归一化（通用 md5 方案）」；若回调网关使用各平台原生
+> 签名，请在本类 `parseWebhook()` 中替换为对应校验，或前置一个签名转换网关。
 
 ### 6. 传输层（SRT Transporter）
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Kode\Live\Tests\Unit;
 
 use Kode\Live\Transporter\Exception\TransportException;
+use Kode\Live\Transporter\ExternalSrtTransporter;
+use Kode\Live\Transporter\SocketTransporter;
 use Kode\Live\Transporter\SrtUrl;
 use Kode\Live\Transporter\TransporterManager;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -19,6 +21,16 @@ final class TransporterManagerTest extends TestCase
 
         self::assertSame(['srt'], $manager->registered());
         self::assertTrue($manager->has('srt'));
+    }
+
+    public function testDefaultPrefersNativeTransporterWhenExtLoaded(): void
+    {
+        // 扩展可用时默认用原生 SocketTransporter，否则降级到 ExternalSrtTransporter（外部进程）。
+        $expected = \extension_loaded('srt') ? SocketTransporter::class : ExternalSrtTransporter::class;
+
+        $manager = TransporterManager::default();
+
+        self::assertInstanceOf($expected, $manager->transporterFor(SrtUrl::fromString('srt://h:9000')));
     }
 
     public function testTransmitRoutesToRegisteredTransporter(): void

@@ -62,6 +62,7 @@ final class ResumableDownloader implements Downloader
      */
     private function attempt(string $sourceUrl, string $destination, DownloadOptions $options): DownloadResult
     {
+        $start = hrtime(true);
         $offset = 0;
         if ($options->resume && is_file($destination)) {
             $size = filesize($destination);
@@ -82,10 +83,19 @@ final class ResumableDownloader implements Downloader
         ]);
 
         $status = $response->getStatusCode();
+        $contentType = $this->contentType($response);
+        $contentLength = $this->contentLength($response);
 
         // 已完整下载：服务端返回 416 表示请求范围超出文件大小。
         if ($status === 416 && $offset > 0) {
-            return new DownloadResult($destination, $offset, true, $this->contentType($response));
+            return new DownloadResult(
+                $destination,
+                $offset,
+                true,
+                $contentType,
+                $offset,
+                $this->elapsed($start),
+            );
         }
 
         if ($status >= 400) {
@@ -96,6 +106,10 @@ final class ResumableDownloader implements Downloader
         $resumed = $status === 206 && $offset > 0;
         $mode = $resumed ? 'ab' : 'wb';
         $written = $resumed ? $offset : 0;
+
+        // 总字节数：优先用 expectedSize；否则按 Content-Length 推算（续传时加上已有偏移）。
+        $total = $options->expectedSize
+            ?? ($contentLength !== null ? ($resumed ? $offset + $contentLength : $contentLength) : null);
 
         $handle = fopen($destination, $mode);
         if ($handle === false) {
@@ -114,6 +128,8 @@ final class ResumableDownloader implements Downloader
                     throw DownloadException::transfer('写入本地文件失败');
                 }
                 $written += $bytes;
+
+                $this->notifyProgress($options, $written, $total, $this->elapsed($start));
             }
         } finally {
             fclose($handle);
@@ -121,7 +137,30 @@ final class ResumableDownloader implements Downloader
 
         $this->verifyIntegrity($destination, $options, $written);
 
-        return new DownloadResult($destination, $written, $resumed, $this->contentType($response));
+        return new DownloadResult(
+            $destination,
+            $written,
+            $resumed,
+            $contentType,
+            $total,
+            $this->elapsed($start),
+        );
+    }
+
+    private function elapsed(int $startNanos): float
+    {
+        return (hrtime(true) - $startNanos) / 1_000_000_000;
+    }
+
+    private function notifyProgress(DownloadOptions $options, int $written, ?int $total, float $elapsedSeconds): void
+    {
+        $callback = $options->onProgress;
+        if ($callback === null || !\is_callable($callback)) {
+            return;
+        }
+
+        $throughput = $elapsedSeconds > 0.0 ? $written / $elapsedSeconds : 0.0;
+        $callback($written, $total, $throughput);
     }
 
     private function contentType(\Psr\Http\Message\ResponseInterface $response): ?string
@@ -129,6 +168,16 @@ final class ResumableDownloader implements Downloader
         $header = $response->getHeaderLine('Content-Type');
 
         return $header !== '' ? $header : null;
+    }
+
+    private function contentLength(\Psr\Http\Message\ResponseInterface $response): ?int
+    {
+        $header = $response->getHeaderLine('Content-Length');
+        if ($header === '' || !is_numeric($header)) {
+            return null;
+        }
+
+        return (int) $header;
     }
 
     /**

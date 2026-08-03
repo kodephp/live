@@ -151,4 +151,52 @@ final class ResumableDownloaderTest extends TestCase
 
         $downloader->download('http://169.254.169.254/latest/meta-data', $this->tmpDir . '/out.mp4');
     }
+
+    public function testProgressCallbackReceivesCumulativeBytes(): void
+    {
+        $mock = new MockHandler([
+            new Response(200, ['Content-Type' => 'video/mp4', 'Content-Length' => '11'], 'hello-video'),
+        ]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
+        $downloader = new ResumableDownloader($client);
+
+        $progress = [];
+        $options = new DownloadOptions(
+            resume: false,
+            chunkBytes: 4,
+            onProgress: function (int $bytes, ?int $total, float $throughput) use (&$progress): void {
+                $progress[] = [$bytes, $total, $throughput];
+            },
+        );
+
+        $dest = $this->tmpDir . '/out.mp4';
+        $result = $downloader->download('https://example.com/a.mp4', $dest, $options);
+
+        // 11 字节按 4 字节分块：4 / 8 / 11，最后一次到达总字节数。
+        self::assertCount(3, $progress);
+        self::assertSame(11, $progress[\count($progress) - 1][0]);
+        self::assertSame(11, $progress[0][1]); // total 来自 Content-Length
+        self::assertSame(11, $result->bytesTotal);
+        self::assertNotNull($result->elapsedSeconds);
+        self::assertGreaterThan(0.0, $progress[\count($progress) - 1][2]); // 吞吐 > 0
+    }
+
+    public function testResultCarriesTotalAndElapsed(): void
+    {
+        $body = 'hello-video';
+        $mock = new MockHandler([new Response(200, ['Content-Type' => 'video/mp4'], $body)]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
+        $downloader = new ResumableDownloader($client);
+
+        $dest = $this->tmpDir . '/out.mp4';
+        $result = $downloader->download(
+            'https://example.com/a.mp4',
+            $dest,
+            new DownloadOptions(resume: false, expectedSize: \strlen($body)),
+        );
+
+        self::assertSame(\strlen($body), $result->bytesTotal);
+        self::assertNotNull($result->elapsedSeconds);
+        self::assertGreaterThanOrEqual(0.0, $result->elapsedSeconds);
+    }
 }

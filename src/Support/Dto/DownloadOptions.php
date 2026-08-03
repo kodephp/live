@@ -20,6 +20,8 @@ final readonly class DownloadOptions
      * @param array<string, string> $headers 追加的请求头
      * @param int|null $expectedSize 期望下载完成后的总字节数；提供则会校验一致性
      * @param string|null $expectedSha256 期望文件的 SHA-256（64 位十六进制）；提供则校验完整性
+     * @param callable|null $onProgress 进度回调，签名 (int $bytesDownloaded, ?int $totalBytes, float $throughputBytesPerSec): void；
+     *                                  每写入一个缓冲块调用一次，便于上层展示进度 / 速率
      */
     public function __construct(
         public bool $resume = true,
@@ -30,6 +32,7 @@ final readonly class DownloadOptions
         public array $headers = [],
         public ?int $expectedSize = null,
         public ?string $expectedSha256 = null,
+        public mixed $onProgress = null,
     ) {
         if ($chunkBytes <= 0) {
             throw ConfigurationException::invalid('download.chunkBytes', '必须为正数');

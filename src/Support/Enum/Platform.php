@@ -19,6 +19,10 @@ enum Platform: string
     case Huawei = 'huawei';
     case WeixinChannels = 'weixin_channels';
     case Kuaishou = 'kuaishou';
+    case Qiniu = 'qiniu';
+    case Upyun = 'upyun';
+    case Cloudflare = 'cloudflare';
+    case Agora = 'agora';
 
     public function label(): string
     {
@@ -31,6 +35,10 @@ enum Platform: string
             self::Huawei => '华为云直播（CSS）',
             self::WeixinChannels => '微信视频号直播',
             self::Kuaishou => '快手直播',
+            self::Qiniu => '七牛直播云（Pili）',
+            self::Upyun => '又拍云直播',
+            self::Cloudflare => 'Cloudflare Stream',
+            self::Agora => '声网 Agora（推流到 CDN）',
         };
     }
 }

@@ -20,7 +20,14 @@ final class TransporterManager
 
     public static function default(): self
     {
-        return (new self())->register(new ExternalSrtTransporter());
+        $manager = (new self())->register(new ExternalSrtTransporter());
+
+        // 原生 SRT 传输仅在运行环境加载 ext-srt 时可用；缺失时静默跳过，由 ExternalSrtTransporter 兜底。
+        if (\extension_loaded('srt')) {
+            $manager = $manager->register(new SocketTransporter());
+        }
+
+        return $manager;
     }
 
     public function register(Transporter $transporter): self

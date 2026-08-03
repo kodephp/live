@@ -51,6 +51,19 @@ final class TransportException extends LiveException
         return new self(\sprintf('不支持的传输协议：%s', $scheme), null, false);
     }
 
+    /**
+     * 运行环境缺少所需的 PHP 扩展（如 ext-srt）——属于硬错误，不应重试。
+     *
+     * 提示调用方降级到 ExternalSrtTransporter（基于外部 srt-live-transmit / ffmpeg 进程）。
+     */
+    public static function extensionMissing(string $extension): self
+    {
+        return new self(\sprintf(
+            '缺少 PHP 扩展 %s，无法使用原生 SRT 传输。可改用 ExternalSrtTransporter（外部 srt-live-transmit / ffmpeg 进程）作为替代。',
+            $extension,
+        ), null, false);
+    }
+
     public function exitCode(): ?int
     {
         return $this->exitCode;
