@@ -175,7 +175,11 @@ final class LivePipelineTest extends TestCase
         $event = new RecordingReadyEvent(Platform::Rtmp, 's1', new DateTimeImmutable(), $recording);
         $downloader = new FakeDownloader();
         $pipeline = new LivePipeline(new StubPlatform($event), downloader: $downloader);
-        $pipeline->autoArchive(new TemplateArchiveStrategy('/data/{date}/{streamName}/{baseName}'));
+        // 冻结时钟，使 {date} 占位符可确定性断言，避免随真实日期漂移。
+        $pipeline->autoArchive(new TemplateArchiveStrategy(
+            '/data/{date}/{streamName}/{baseName}',
+            new FrozenClock(new DateTimeImmutable('2026-07-25 12:00:00')),
+        ));
 
         $pipeline->handleWebhook('payload');
 
