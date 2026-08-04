@@ -91,6 +91,8 @@ final class ExternalSrtTransporterTest extends TestCase
 
         self::assertFalse($result->success);
         self::assertSame(127, $result->exitCode);
-        self::assertStringContainsString('No such file', (string) $result->error);
+        // 错误中必然包含被执行的二进制路径（macOS 报 "No such file or directory"，
+        // Ubuntu dash 报 "not found"），用路径断言可跨平台稳定通过。
+        self::assertStringContainsString('/no/such/binary-xyz', (string) $result->error);
     }
 }
