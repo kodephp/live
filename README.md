@@ -379,8 +379,9 @@ if (!$result->success) {
 composer check   # = php-cs-fixer(dry-run) + phpstan level 8 + phpunit
 ```
 
-工程规则见 [`.github/copilot-instructions.md`](.github/copilot-instructions.md)（对所有 AI 编码助手 / IDE 生效）。
-编辑器规则（`.cursorrules` / `.cursor/rules`）、平台扩展指引（`.workbuddy/skills`）以**本地文件**形式提供，仅本地保留、不纳入仓库，克隆后按需自行补充。
+工程规则（对所有 AI 编码助手 / IDE 生效）与平台扩展指引以**本地文件**形式提供：编辑器规则见
+`.cursorrules` / `.cursor/rules`，平台扩展见 `.workbuddy/skills`；仅本地保留、不纳入仓库，
+克隆后按需自行补充。
 
 ## License
 
