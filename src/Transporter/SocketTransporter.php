@@ -259,6 +259,6 @@ final class SocketTransporter implements Transporter
     {
         // ext-srt 为可选扩展，PHPStan 无法静态解析其函数；此处动态调用并忽略类型检查。
         /** @phpstan-ignore-next-line */
-        return \call_user_func_array($name, $args);
+        return $name(...$args);
     }
 }
