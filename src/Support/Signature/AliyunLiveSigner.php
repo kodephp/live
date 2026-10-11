@@ -25,7 +25,7 @@ final class AliyunLiveSigner
      */
     public function authKey(
         string $uri,
-        string $privateKey,
+        #[\SensitiveParameter] string $privateKey,
         int $timestamp,
         string $rand = '0',
         string $uid = '0',
@@ -47,7 +47,7 @@ final class AliyunLiveSigner
         string $appName,
         string $streamName,
         string $suffix,
-        string $privateKey,
+        #[\SensitiveParameter] string $privateKey,
         int $expiresAt,
         array $extraParams = [],
     ): string {

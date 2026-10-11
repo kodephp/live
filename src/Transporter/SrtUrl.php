@@ -22,7 +22,7 @@ final readonly class SrtUrl
         public string $host,
         public int $port,
         public ?string $streamId = null,
-        public ?string $passphrase = null,
+        #[\SensitiveParameter] public ?string $passphrase = null,
         public ?int $latencyMs = null,
         public SrtMode $mode = SrtMode::Caller,
         public ?int $pbkeylen = null,

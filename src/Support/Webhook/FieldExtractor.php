@@ -67,7 +67,7 @@ final class FieldExtractor
      *
      * @throws InvalidWebhookException 签名缺失或比对失败
      */
-    public static function verifySortedMd5(array $data, string $secret, string $signKey = 'sign'): void
+    public static function verifySortedMd5(array $data, #[\SensitiveParameter] string $secret, string $signKey = 'sign'): void
     {
         $sign = self::stringField($data, $signKey);
         if ($sign === '') {
