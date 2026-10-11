@@ -1,6 +1,6 @@
 {
     "name": "kode/live",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "多平台直播综合包：推拉流地址签名、录制自动落对象存储、回放与断点续传下载的统一编排（PHP 8.4+）。",
     "type": "library",
     "license": "MIT",
@@ -36,6 +36,10 @@
         "phpunit/phpunit": "^11.2",
         "phpstan/phpstan": "^1.11",
         "friendsofphp/php-cs-fixer": "^3.58"
+    },
+    "support": {
+        "issues": "https://github.com/kodephp/live/issues",
+        "source": "https://github.com/kodephp/live"
     },
     "autoload": {
         "psr-4": {
