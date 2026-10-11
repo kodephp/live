@@ -28,6 +28,7 @@ final class TemplateArchiveStrategy implements ArchiveStrategy
     ) {
     }
 
+    #[\Override]
     public function destinationFor(RecordingReadyEvent $event): string
     {
         $objectKey = $event->recording->objectKey;

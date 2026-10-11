@@ -45,11 +45,13 @@ final class SocketTransporter implements Transporter
     {
     }
 
+    #[\Override]
     public function scheme(): string
     {
         return 'srt';
     }
 
+    #[\Override]
     public function transmit(string $source, SrtUrl $destination, ?TransporterOptions $options = null): TransmitResult
     {
         if (!\function_exists('srt_startup')) {

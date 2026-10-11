@@ -22,6 +22,7 @@ use Kode\Live\Support\Exception\UnsupportedFeatureException;
  */
 abstract class AbstractStreamKeyPlatform extends AbstractLivePlatform
 {
+    #[\Override]
     public function supports(StreamProtocol $protocol): bool
     {
         return match ($protocol) {
@@ -31,6 +32,7 @@ abstract class AbstractStreamKeyPlatform extends AbstractLivePlatform
         };
     }
 
+    #[\Override]
     public function pushUrl(StreamRequest $request): PushUrl
     {
         $app = $request->appName ?? $this->defaultAppName();
@@ -40,6 +42,7 @@ abstract class AbstractStreamKeyPlatform extends AbstractLivePlatform
         return new PushUrl($this->appendAuth($base, $request->params), StreamProtocol::Rtmp);
     }
 
+    #[\Override]
     public function pullUrl(StreamRequest $request, StreamProtocol $protocol): PullUrl
     {
         $this->assertSupported($protocol);

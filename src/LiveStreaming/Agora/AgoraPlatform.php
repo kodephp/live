@@ -46,31 +46,37 @@ final class AgoraPlatform extends AbstractStreamKeyPlatform
         parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds, $webhookMaxAgeSeconds);
     }
 
+    #[\Override]
     public function name(): Platform
     {
         return Platform::Agora;
     }
 
+    #[\Override]
     protected function defaultPushDomain(): string
     {
         return $this->config->pushDomain;
     }
 
+    #[\Override]
     protected function defaultPullDomain(): string
     {
         return $this->config->pullDomain;
     }
 
+    #[\Override]
     protected function defaultAppName(): string
     {
         return $this->config->appName;
     }
 
+    #[\Override]
     protected function webhookSecret(): string
     {
         return $this->config->callbackSecret;
     }
 
+    #[\Override]
     public function parseWebhook(string $payload, array $headers = []): LiveEvent
     {
         if ($this->config->callbackSecret === '') {

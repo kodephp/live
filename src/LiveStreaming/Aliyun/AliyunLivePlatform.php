@@ -51,11 +51,13 @@ final class AliyunLivePlatform extends AbstractLivePlatform
         $this->signer = $signer ?? new AliyunLiveSigner();
     }
 
+    #[\Override]
     public function name(): Platform
     {
         return Platform::AliyunLive;
     }
 
+    #[\Override]
     public function supports(StreamProtocol $protocol): bool
     {
         return \in_array($protocol, [
@@ -65,6 +67,7 @@ final class AliyunLivePlatform extends AbstractLivePlatform
         ], true);
     }
 
+    #[\Override]
     public function pushUrl(StreamRequest $request): PushUrl
     {
         $app = $request->appName ?? $this->config->defaultAppName;
@@ -84,6 +87,7 @@ final class AliyunLivePlatform extends AbstractLivePlatform
         return new PushUrl($url, StreamProtocol::Rtmp, (new DateTimeImmutable())->setTimestamp($expires));
     }
 
+    #[\Override]
     public function pullUrl(StreamRequest $request, StreamProtocol $protocol): PullUrl
     {
         $this->assertSupported($protocol);
@@ -105,6 +109,7 @@ final class AliyunLivePlatform extends AbstractLivePlatform
         return new PullUrl($url, $protocol, (new DateTimeImmutable())->setTimestamp($expires));
     }
 
+    #[\Override]
     public function parseWebhook(string $payload, array $headers = []): LiveEvent
     {
         if ($this->config->callbackToken === '') {

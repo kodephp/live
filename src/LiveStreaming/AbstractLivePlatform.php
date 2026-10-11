@@ -32,11 +32,13 @@ abstract class AbstractLivePlatform implements LivePlatform
     ) {
     }
 
+    #[\Override]
     public function recordingConfig(): RecordingConfig
     {
         return $this->recordingConfig;
     }
 
+    #[\Override]
     public function playbackUrl(Recording $recording, int $ttlSeconds = 3600): PlaybackUrl
     {
         if ($this->signedUrlProvider === null) {

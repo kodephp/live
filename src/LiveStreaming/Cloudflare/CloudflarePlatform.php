@@ -53,26 +53,31 @@ final class CloudflarePlatform extends AbstractStreamKeyPlatform
         parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds, $webhookMaxAgeSeconds);
     }
 
+    #[\Override]
     public function name(): Platform
     {
         return Platform::Cloudflare;
     }
 
+    #[\Override]
     protected function defaultPushDomain(): string
     {
         return $this->config->pushDomain;
     }
 
+    #[\Override]
     protected function defaultPullDomain(): string
     {
         return $this->config->pullDomain;
     }
 
+    #[\Override]
     protected function webhookSecret(): string
     {
         return $this->config->callbackSecret;
     }
 
+    #[\Override]
     public function supports(StreamProtocol $protocol): bool
     {
         return match ($protocol) {
@@ -82,6 +87,7 @@ final class CloudflarePlatform extends AbstractStreamKeyPlatform
         };
     }
 
+    #[\Override]
     public function pushUrl(StreamRequest $request): PushUrl
     {
         $base = \sprintf('rtmps://%s/live/%s', $this->pushDomain(), $request->streamName);
@@ -89,6 +95,7 @@ final class CloudflarePlatform extends AbstractStreamKeyPlatform
         return new PushUrl($this->appendAuth($base, $request->params), StreamProtocol::Rtmp);
     }
 
+    #[\Override]
     public function pullUrl(StreamRequest $request, StreamProtocol $protocol): PullUrl
     {
         if ($protocol !== StreamProtocol::Hls) {
@@ -105,6 +112,7 @@ final class CloudflarePlatform extends AbstractStreamKeyPlatform
         return new PullUrl($this->appendAuth($base, $request->params), $protocol);
     }
 
+    #[\Override]
     public function parseWebhook(string $payload, array $headers = []): LiveEvent
     {
         if ($this->config->callbackSecret === '') {

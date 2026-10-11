@@ -52,11 +52,13 @@ final class TencentCssPlatform extends AbstractLivePlatform
         $this->signer = $signer ?? new TencentCssSigner();
     }
 
+    #[\Override]
     public function name(): Platform
     {
         return Platform::TencentCss;
     }
 
+    #[\Override]
     public function supports(StreamProtocol $protocol): bool
     {
         return \in_array($protocol, [
@@ -67,6 +69,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
         ], true);
     }
 
+    #[\Override]
     public function pushUrl(StreamRequest $request): PushUrl
     {
         $app = $request->appName ?? $this->config->defaultAppName;
@@ -86,6 +89,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
         return new PushUrl($url, StreamProtocol::Rtmp, (new DateTimeImmutable())->setTimestamp($expires));
     }
 
+    #[\Override]
     public function pullUrl(StreamRequest $request, StreamProtocol $protocol): PullUrl
     {
         $this->assertSupported($protocol);
@@ -108,6 +112,7 @@ final class TencentCssPlatform extends AbstractLivePlatform
         return new PullUrl($url, $protocol, (new DateTimeImmutable())->setTimestamp($expires));
     }
 
+    #[\Override]
     public function parseWebhook(string $payload, array $headers = []): LiveEvent
     {
         if ($this->config->callbackKey === '') {

@@ -25,6 +25,7 @@ final class ExternalSrtTransporter implements Transporter
     {
     }
 
+    #[\Override]
     public function scheme(): string
     {
         return 'srt';
@@ -46,6 +47,7 @@ final class ExternalSrtTransporter implements Transporter
         return $command;
     }
 
+    #[\Override]
     public function transmit(string $source, SrtUrl $destination, ?TransporterOptions $options = null): TransmitResult
     {
         $options ??= new TransporterOptions();

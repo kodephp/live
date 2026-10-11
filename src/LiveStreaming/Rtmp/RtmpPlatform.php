@@ -39,26 +39,31 @@ final class RtmpPlatform extends AbstractStreamKeyPlatform
         parent::__construct($recordingConfig, $signedUrlProvider, $clock, $logger, $defaultTtlSeconds);
     }
 
+    #[\Override]
     public function name(): Platform
     {
         return Platform::Rtmp;
     }
 
+    #[\Override]
     protected function defaultPushDomain(): string
     {
         return $this->config->pushDomain;
     }
 
+    #[\Override]
     protected function defaultPullDomain(): string
     {
         return $this->config->pullDomain;
     }
 
+    #[\Override]
     protected function defaultAppName(): string
     {
         return $this->config->appName;
     }
 
+    #[\Override]
     protected function webhookSecret(): string
     {
         return $this->config->callbackSecret;
@@ -67,6 +72,7 @@ final class RtmpPlatform extends AbstractStreamKeyPlatform
     /**
      * @return array<string, string>
      */
+    #[\Override]
     protected function authParams(): array
     {
         if ($this->config->authSecret === '') {
@@ -76,6 +82,7 @@ final class RtmpPlatform extends AbstractStreamKeyPlatform
         return [$this->config->authParam => $this->config->authSecret];
     }
 
+    #[\Override]
     public function parseWebhook(string $payload, array $headers = []): LiveEvent
     {
         /** @var array<int|string, mixed> $parsed */

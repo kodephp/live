@@ -34,6 +34,7 @@ final class ResumableDownloader implements Downloader
         return new self(GuzzleClientFactory::create(), $logger);
     }
 
+    #[\Override]
     public function download(string $sourceUrl, string $destination, ?DownloadOptions $options = null): DownloadResult
     {
         $options ??= new DownloadOptions();
