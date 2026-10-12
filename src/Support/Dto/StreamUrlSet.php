@@ -28,12 +28,6 @@ final readonly class StreamUrlSet
      */
     public function pull(StreamProtocol $protocol): ?PullUrl
     {
-        foreach ($this->pull as $url) {
-            if ($url->protocol === $protocol) {
-                return $url;
-            }
-        }
-
-        return null;
+        return array_find($this->pull, fn($url) => $url->protocol === $protocol);
     }
 }
