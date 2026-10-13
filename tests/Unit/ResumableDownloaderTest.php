@@ -68,6 +68,63 @@ final class ResumableDownloaderTest extends TestCase
         self::assertSame(11, $result->bytes);
     }
 
+    public function testContentRangeOffsetMismatchFallsBackToFullRedownload(): void
+    {
+        // 源文件已变：本地 6 字节，服务端却从 0 开始返回 206。旧逻辑会把
+        // 「新全文」接到旧尾部，得到 17 字节的损坏文件；新逻辑放弃续传整文件重下。
+        $dest = $this->tmpDir . '/out.mp4';
+        file_put_contents($dest, 'hello-');
+
+        $mock = new MockHandler([
+            new Response(206, ['Content-Range' => 'bytes 0-10/11'], 'hello-video'),
+        ]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
+        $downloader = new ResumableDownloader($client);
+
+        $result = $downloader->download('https://example.com/a.mp4', $dest, new DownloadOptions(resume: true));
+
+        self::assertFalse($result->resumed);
+        self::assertSame('hello-video', file_get_contents($dest));
+        self::assertSame(11, $result->bytes);
+    }
+
+    public function testContentRangeMissingFallsBackToFullRedownload(): void
+    {
+        // 206 但无 Content-Range（规范违约 / 缓存错乱）→ 同样保守重下。
+        $dest = $this->tmpDir . '/out.mp4';
+        file_put_contents($dest, 'hello-');
+
+        $mock = new MockHandler([
+            new Response(206, ['Content-Length' => '11'], 'hello-video'),
+        ]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
+        $downloader = new ResumableDownloader($client);
+
+        $result = $downloader->download('https://example.com/a.mp4', $dest, new DownloadOptions(resume: true));
+
+        self::assertFalse($result->resumed);
+        self::assertSame('hello-video', file_get_contents($dest));
+    }
+
+    public function testContentRangeMismatchStillPassesSizeVerification(): void
+    {
+        // 失败续传被兜底为重下后，expectedSize 校验按新全文走，不得误报。
+        $dest = $this->tmpDir . '/out.mp4';
+        file_put_contents($dest, 'hello-');
+
+        $mock = new MockHandler([
+            new Response(206, ['Content-Range' => 'bytes 0-10/11'], 'hello-video'),
+        ]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
+        $downloader = new ResumableDownloader($client);
+
+        $options = new DownloadOptions(resume: true, expectedSize: 11);
+        $result = $downloader->download('https://example.com/a.mp4', $dest, $options);
+
+        self::assertSame(11, $result->bytes);
+        self::assertSame('hello-video', file_get_contents($dest));
+    }
+
     public function testDownloadVerifiesSha256AndSize(): void
     {
         $body = 'hello-video';

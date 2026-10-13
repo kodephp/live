@@ -59,6 +59,7 @@ composer require kode/live
 - **Webhook 重放防护**：各平台回调验签通过后，额外校验回调时间戳（`t` / `timestamp` 等）是否落在新鲜窗口内（默认 300s，可通过构造参数 `webhookMaxAgeSeconds` 调整），超出即判定为重放攻击并拒绝。
 - **下载器 SSRF 防护**：`ResumableDownloader` 在发起请求前调用 `AssertSafe::safeUrl()`，仅放行 `http/https`，并拒绝环回（127.0.0.1 / ::1）、私有网段（10/8、172.16/12、192.168/16、fc00::/7）与云元数据地址（169.254.169.254）。
 - **下载完整性**：支持 `expectedSize` / `expectedSha256`，落盘后用 `hash_equals` 时序安全比对，防止文件损坏或被篡改。
+- **续传偏移校验**：服务端返回 206 时其 `Content-Range` 起始偏移必须与本地已下载偏移一致；源文件被替换 / 代理不认 Range / 签名 URL 滚动刷新时放弃续传并整文件重下，杜绝「旧尾部 + 新字节」拼接出的伪大小损坏文件。无 `Content-Range` 头的 206 同样按此保守处理。
 - **输入安全**：推拉流地址使用的流名 / 应用名经 `AssertSafe::identifier()` 白名单校验（仅 `[A-Za-z0-9._-]`），下载落盘路径经穿越防护，杜绝 URL 注入与路径穿越。
 - **时序安全验签**：所有 webhook 签名比对均使用 `hash_equals()`，避免时序侧信道。
 - **指数退避重试**：网络类瞬时失败通过 `Support\Retry` 进行指数退避 + 抖动重试，仅对可恢复异常（如下载的 `GuzzleException`）重试，校验失败不重试。

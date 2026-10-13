@@ -104,7 +104,23 @@ final class ResumableDownloader implements Downloader
         }
 
         // 断点续传：206 追加写入；否则从头覆盖写入。
-        $resumed = $status === 206 && $offset > 0;
+        // 关键校验：服务端返回 206 时其 Content-Range 的起始偏移必须正好等于
+        // 本地已有偏移。源文件被替换、代理不认 Range、签名 URL 滚动刷新都会导致
+        // 服务端从 0（或其它偏移）开始返回——此时旧尾部 + 新字节拼接出的是
+        // 「大小为原本正确、内容却损坏」的文件，唯一安全处理是放弃增量整文件重下。
+        $resumed = false;
+        if ($status === 206 && $offset > 0) {
+            $rangeStart = $this->rangeStart($response);
+            if ($rangeStart === $offset) {
+                $resumed = true;
+            } else {
+                $this->logger->warning('Content-Range 起始偏移与本地已下载偏移不一致，放弃续传改为整文件重下', [
+                    'expected_offset' => $offset,
+                    'content_range' => $response->getHeaderLine('Content-Range'),
+                ]);
+            }
+        }
+
         $mode = $resumed ? 'ab' : 'wb';
         $written = $resumed ? $offset : 0;
 
@@ -179,6 +195,21 @@ final class ResumableDownloader implements Downloader
         }
 
         return (int) $header;
+    }
+
+    /**
+     * 解析 Content-Range: bytes <start>-<end>/<total|*> 的起始偏移。
+     *
+     * 缺失或格式非法返回 null（调用方按「偏移不符」处理，保守拒绝续传）。
+     */
+    private function rangeStart(\Psr\Http\Message\ResponseInterface $response): ?int
+    {
+        $header = $response->getHeaderLine('Content-Range');
+        if ($header === '' || !preg_match('#^\s*bytes\s+(\d+)\s*-#i', $header, $m)) {
+            return null;
+        }
+
+        return (int) $m[1];
     }
 
     /**
