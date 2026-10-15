@@ -1,6 +1,6 @@
 {
     "name": "kode/live",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "description": "多平台直播综合包：推拉流地址签名、录制自动落对象存储、回放与断点续传下载的统一编排（PHP 8.4+）。",
     "type": "library",
     "license": "MIT",

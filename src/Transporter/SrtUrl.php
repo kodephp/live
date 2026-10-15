@@ -85,7 +85,8 @@ final readonly class SrtUrl
             $query['pbkeylen'] = (string) $this->pbkeylen;
         }
 
-        $suffix = \count($query) === 0 ? '' : '?' . http_build_query($query);
+        // mode 无条件写入，$query 恒非空
+        $suffix = '?' . http_build_query($query);
 
         return \sprintf('srt://%s:%d%s', $this->host, $this->port, $suffix);
     }

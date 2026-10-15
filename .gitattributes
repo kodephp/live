@@ -13,3 +13,4 @@
 
 *.php text eol=lf
 *.md  text eol=lf
+/phpstan.neon           export-ignore
