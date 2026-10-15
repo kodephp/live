@@ -16,9 +16,9 @@ namespace Kode\Live\LiveStreaming\Cloudflare;
 final readonly class CloudflareConfig
 {
     public function __construct(
-        public string $pushDomain = 'live.cloudflare.com:443',
-        public string $pullDomain = 'customer-<code>.cloudflarestream.com',
-        public string $callbackSecret = '',
+        public private(set) string $pushDomain = 'live.cloudflare.com:443',
+        public private(set) string $pullDomain = 'customer-<code>.cloudflarestream.com',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

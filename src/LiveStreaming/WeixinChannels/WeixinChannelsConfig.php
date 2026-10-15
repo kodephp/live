@@ -13,10 +13,10 @@ namespace Kode\Live\LiveStreaming\WeixinChannels;
 final readonly class WeixinChannelsConfig
 {
     public function __construct(
-        public string $pushDomain = 'livepush.weixin.qq.com',
-        public string $pullDomain = '',
-        public string $appName = 'live',
-        public string $callbackToken = '',
+        public private(set) string $pushDomain = 'livepush.weixin.qq.com',
+        public private(set) string $pullDomain = '',
+        public private(set) string $appName = 'live',
+        public private(set) string $callbackToken = '',
     ) {
     }
 }

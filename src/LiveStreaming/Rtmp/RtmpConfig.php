@@ -12,12 +12,12 @@ use Kode\Live\Support\Exception\ConfigurationException;
 final readonly class RtmpConfig
 {
     public function __construct(
-        public string $pushDomain,
-        public string $pullDomain = '',
-        public string $appName = '',
+        public private(set) string $pushDomain,
+        public private(set) string $pullDomain = '',
+        public private(set) string $appName = '',
         public string $authParam = 'key',
-        public string $authSecret = '',
-        public string $callbackSecret = '',
+        public private(set) string $authSecret = '',
+        public private(set) string $callbackSecret = '',
     ) {
         if ($pushDomain === '') {
             throw ConfigurationException::missing('rtmp.pushDomain');

@@ -17,8 +17,8 @@ final readonly class StreamUrlSet
      * @param list<PullUrl> $pull 不同协议的拉流地址
      */
     public function __construct(
-        public PushUrl $push,
-        public array $pull,
+        public private(set) PushUrl $push,
+        public private(set) array $pull,
         public ?PlaybackUrl $playback = null,
     ) {
     }

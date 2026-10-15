@@ -13,10 +13,10 @@ namespace Kode\Live\LiveStreaming\Bilibili;
 final readonly class BilibiliConfig
 {
     public function __construct(
-        public string $pushDomain = 'live-push.bilivideo.com',
-        public string $pullDomain = 'live-pull.biliapi.com',
-        public string $appName = 'live-bvc',
-        public string $callbackSecret = '',
+        public private(set) string $pushDomain = 'live-push.bilivideo.com',
+        public private(set) string $pullDomain = 'live-pull.biliapi.com',
+        public private(set) string $appName = 'live-bvc',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

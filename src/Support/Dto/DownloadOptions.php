@@ -24,15 +24,15 @@ final readonly class DownloadOptions
      *                                  每写入一个缓冲块调用一次，便于上层展示进度 / 速率
      */
     public function __construct(
-        public bool $resume = true,
-        public int $chunkBytes = 1_048_576,
+        public private(set) bool $resume = true,
+        public private(set) int $chunkBytes = 1_048_576,
         public int $timeout = 300,
         public int $connectTimeout = 5,
         public int $maxRetries = 2,
         public array $headers = [],
         public ?int $expectedSize = null,
         public ?string $expectedSha256 = null,
-        public mixed $onProgress = null,
+        public private(set) mixed $onProgress = null,
     ) {
         if ($chunkBytes <= 0) {
             throw ConfigurationException::invalid('download.chunkBytes', '必须为正数');

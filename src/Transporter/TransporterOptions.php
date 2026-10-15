@@ -15,9 +15,9 @@ use Psr\Log\LoggerInterface;
 final readonly class TransporterOptions
 {
     public function __construct(
-        public int $reconnectAttempts = 3,
-        public int $reconnectBaseDelayMs = 200,
-        public int $reconnectMaxDelayMs = 5000,
+        public private(set) int $reconnectAttempts = 3,
+        public private(set) int $reconnectBaseDelayMs = 200,
+        public private(set) int $reconnectMaxDelayMs = 5000,
         public ?LoggerInterface $logger = null,
         public ?\Closure $sleeper = null,
     ) {

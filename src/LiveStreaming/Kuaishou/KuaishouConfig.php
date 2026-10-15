@@ -14,10 +14,10 @@ namespace Kode\Live\LiveStreaming\Kuaishou;
 final readonly class KuaishouConfig
 {
     public function __construct(
-        public string $pushDomain = 'live-push.kuaishou.com',
-        public string $pullDomain = 'live-pull.kuaishou.com',
-        public string $appName = 'live',
-        public string $callbackSecret = '',
+        public private(set) string $pushDomain = 'live-push.kuaishou.com',
+        public private(set) string $pullDomain = 'live-pull.kuaishou.com',
+        public private(set) string $appName = 'live',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

@@ -24,7 +24,7 @@ final readonly class RecordingReadyEvent extends AbstractLiveEvent
         Platform $platform,
         string $streamName,
         DateTimeImmutable $occurredAt,
-        public Recording $recording,
+        public private(set) Recording $recording,
         array $raw = [],
     ) {
         parent::__construct($platform, $streamName, $occurredAt, $raw);

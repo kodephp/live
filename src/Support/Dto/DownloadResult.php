@@ -11,8 +11,8 @@ final readonly class DownloadResult
 {
     public function __construct(
         public string $path,
-        public int $bytes,
-        public bool $resumed,
+        public private(set) int $bytes,
+        public private(set) bool $resumed,
         public ?string $contentType = null,
         /** 期望 / 实际总字节数（来自 expectedSize 或响应 Content-Length；未知为 null）。 */
         public ?int $bytesTotal = null,

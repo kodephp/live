@@ -15,10 +15,10 @@ namespace Kode\Live\LiveStreaming\Qiniu;
 final readonly class QiniuConfig
 {
     public function __construct(
-        public string $pushDomain = 'pili-publish.qiniu.com',
-        public string $pullDomain = 'pili-live-hls.qiniu.com',
+        public private(set) string $pushDomain = 'pili-publish.qiniu.com',
+        public private(set) string $pullDomain = 'pili-live-hls.qiniu.com',
         public string $hub = '',
-        public string $callbackSecret = '',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

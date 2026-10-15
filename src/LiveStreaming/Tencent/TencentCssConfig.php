@@ -14,12 +14,12 @@ use Kode\Live\Support\Exception\ConfigurationException;
 final readonly class TencentCssConfig
 {
     public function __construct(
-        public string $pushDomain,
-        public string $pullDomain,
-        public string $defaultAppName = 'live',
-        public string $pushKey = '',
-        public string $pullKey = '',
-        public string $callbackKey = '',
+        public private(set) string $pushDomain,
+        public private(set) string $pullDomain,
+        public private(set) string $defaultAppName = 'live',
+        public private(set) string $pushKey = '',
+        public private(set) string $pullKey = '',
+        public private(set) string $callbackKey = '',
     ) {
         if ($pushDomain === '') {
             throw ConfigurationException::missing('tencent.pushDomain');

@@ -13,10 +13,10 @@ namespace Kode\Live\LiveStreaming\Douyin;
 final readonly class DouyinConfig
 {
     public function __construct(
-        public string $pushDomain = 'push-rtmp.douyincdn.com',
-        public string $pullDomain = 'pull-flv.douyincdn.com',
-        public string $appName = 'thirdparty',
-        public string $callbackSecret = '',
+        public private(set) string $pushDomain = 'push-rtmp.douyincdn.com',
+        public private(set) string $pullDomain = 'pull-flv.douyincdn.com',
+        public private(set) string $appName = 'thirdparty',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

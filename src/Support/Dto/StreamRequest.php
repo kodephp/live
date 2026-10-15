@@ -19,7 +19,7 @@ final readonly class StreamRequest
      * @param array<string, string> $params 追加到 URL 的自定义查询参数
      */
     public function __construct(
-        public string $streamName,
+        public private(set) string $streamName,
         public ?string $appName = null,
         public ?DateTimeImmutable $expiresAt = null,
         public array $params = [],

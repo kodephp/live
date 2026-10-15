@@ -17,10 +17,10 @@ namespace Kode\Live\LiveStreaming\Agora;
 final readonly class AgoraConfig
 {
     public function __construct(
-        public string $pushDomain = 'push.agora.io',
-        public string $pullDomain = '',
-        public string $appName = '',
-        public string $callbackSecret = '',
+        public private(set) string $pushDomain = 'push.agora.io',
+        public private(set) string $pullDomain = '',
+        public private(set) string $appName = '',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

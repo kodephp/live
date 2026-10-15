@@ -15,10 +15,10 @@ namespace Kode\Live\LiveStreaming\Upyun;
 final readonly class UpyunConfig
 {
     public function __construct(
-        public string $pushDomain = 'uplive-upaiyun.com',
-        public string $pullDomain = 'ulive-upaiyun.com',
-        public string $appName = '',
-        public string $callbackSecret = '',
+        public private(set) string $pushDomain = 'uplive-upaiyun.com',
+        public private(set) string $pullDomain = 'ulive-upaiyun.com',
+        public private(set) string $appName = '',
+        public private(set) string $callbackSecret = '',
     ) {
     }
 }

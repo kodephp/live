@@ -13,10 +13,10 @@ use Kode\Live\Support\Enum\RecordingFormat;
 final readonly class Recording
 {
     public function __construct(
-        public string $streamName,
-        public string $appName,
+        public private(set) string $streamName,
+        public private(set) string $appName,
         public string $bucket,
-        public string $objectKey,
+        public private(set) string $objectKey,
         public RecordingFormat $format,
         public ?string $sourceUrl = null,
         public ?int $sizeBytes = null,

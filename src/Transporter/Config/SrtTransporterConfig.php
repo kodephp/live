@@ -13,9 +13,9 @@ namespace Kode\Live\Transporter\Config;
 final readonly class SrtTransporterConfig
 {
     public function __construct(
-        public string $binaryPath = 'srt-live-transmit',
+        public private(set) string $binaryPath = 'srt-live-transmit',
         /** @var list<string> */
-        public array $defaultArgs = [],
+        public private(set) array $defaultArgs = [],
     ) {
     }
 }

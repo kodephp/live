@@ -24,10 +24,10 @@ final readonly class RecordingConfig
      */
     public function __construct(
         public string $bucket,
-        public string $region,
-        public string $pathTemplate = '{app}/{stream}/{date}/{time}{ext}',
+        public private(set) string $region,
+        public private(set) string $pathTemplate = '{app}/{stream}/{date}/{time}{ext}',
         public RecordingFormat $format = RecordingFormat::Mp4,
-        public int $sliceSeconds = 0,
+        public private(set) int $sliceSeconds = 0,
     ) {
         if ($bucket === '') {
             throw ConfigurationException::missing('recording.bucket');
